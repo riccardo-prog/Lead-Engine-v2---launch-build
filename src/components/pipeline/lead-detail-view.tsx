@@ -13,11 +13,11 @@ const tempBadge: Record<string, string> = {
 }
 
 const stageBadgeStyles: Record<string, string> = {
-  new: "text-indigo-400 bg-indigo-400/[0.08]",
-  contacted: "text-amber-400 bg-amber-400/[0.08]",
-  nurturing: "text-indigo-300 bg-indigo-500/[0.08]",
-  qualified: "text-emerald-400 bg-emerald-400/[0.08]",
-  booked: "text-cyan-400 bg-cyan-400/[0.08]",
+  new: "text-indigo-600 dark:text-indigo-400 bg-indigo-500/[0.08]",
+  contacted: "text-amber-600 dark:text-amber-400 bg-amber-500/[0.08]",
+  nurturing: "text-indigo-500 dark:text-indigo-300 bg-indigo-500/[0.08]",
+  qualified: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.08]",
+  booked: "text-cyan-600 dark:text-cyan-400 bg-cyan-500/[0.08]",
 }
 
 export function LeadDetailView({
@@ -47,7 +47,7 @@ export function LeadDetailView({
       <div>
         <Link
           href="/pipeline"
-          className="text-[13px] text-indigo-500 hover:text-indigo-400 no-underline transition-colors"
+          className="text-[13px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 no-underline transition-colors"
         >
           ← Back to pipeline
         </Link>
@@ -56,7 +56,7 @@ export function LeadDetailView({
       {/* Lead header */}
       <div className="flex justify-between items-start">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-sm font-semibold text-indigo-400 shrink-0">
+          <div className="w-12 h-12 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-sm font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
             {name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
           </div>
           <div>
@@ -88,11 +88,11 @@ export function LeadDetailView({
 
           {/* AI label */}
           <div className="flex items-center gap-2 mb-3">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-400">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-600 dark:text-indigo-400">
               <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" />
               <path d="M16 14H8a4 4 0 0 0-4 4v2h16v-2a4 4 0 0 0-4-4z" />
             </svg>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.05em] text-indigo-400">AI Summary</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.05em] text-indigo-600 dark:text-indigo-400">AI Summary</span>
           </div>
 
           {/* Headline / summary text */}

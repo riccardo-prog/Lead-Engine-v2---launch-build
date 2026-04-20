@@ -64,7 +64,6 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
     router.refresh()
   }
 
-  // Get user initials from email
   const initials = userEmail
     ? userEmail.split("@")[0].slice(0, 2).toUpperCase()
     : "?"
@@ -76,30 +75,49 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
         ${collapsed ? "w-14" : "w-[220px]"}
       `}
     >
-      {/* Header */}
-      <div className={`flex items-center px-3 pt-5 pb-4 ${collapsed ? "justify-center" : "justify-between"}`}>
-        {collapsed ? (
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
+      {/* Header — logo + collapse toggle */}
+      <div className={`flex items-center px-3 pt-4 pb-3 ${collapsed ? "justify-center" : "justify-between"}`}>
+        <div className={`flex items-center ${collapsed ? "" : "gap-2.5"}`}>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
             L
           </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
-                L
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-foreground">Lead Engine</div>
-                <div className="text-[11px] text-muted-foreground">OperateAI</div>
-              </div>
+          {!collapsed && (
+            <div>
+              <div className="text-sm font-semibold text-foreground">Lead Engine</div>
+              <div className="text-[11px] text-muted-foreground">OperateAI</div>
             </div>
-            <NotificationBell />
-          </>
+          )}
+        </div>
+        {!collapsed && (
+          <button
+            onClick={() => setCollapsed(true)}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            aria-label="Collapse sidebar"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="11 17 6 12 11 7" />
+              <polyline points="18 17 13 12 18 7" />
+            </svg>
+          </button>
         )}
       </div>
 
+      {/* Expand button when collapsed */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="mx-auto mb-1 p-1 rounded-md text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+          aria-label="Expand sidebar"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="13 17 18 12 13 7" />
+            <polyline points="6 17 11 12 6 7" />
+          </svg>
+        </button>
+      )}
+
       {/* Navigation */}
-      <nav className="flex flex-col gap-0.5 px-2 mt-2">
+      <nav className="flex flex-col gap-0.5 px-2 mt-1">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/")
           return (
@@ -126,68 +144,47 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Footer */}
-      <div className={`flex flex-col gap-3 px-2 pb-4 ${collapsed ? "items-center" : ""}`}>
-        {/* Collapsed: show notification bell here since header is icon-only */}
+      {/* Footer — compact group */}
+      <div className={`flex flex-col gap-2 px-2 pb-3 ${collapsed ? "items-center" : ""}`}>
+        {/* Notification bell (collapsed only — in expanded it's near the nav) */}
         {collapsed && <NotificationBell />}
 
-        {/* User info */}
-        <div className={`flex items-center gap-2.5 ${collapsed ? "justify-center" : "px-1"}`}>
-          <div className="w-7 h-7 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-[10px] font-semibold text-indigo-400 shrink-0">
+        {/* User row */}
+        <div className={`flex items-center ${collapsed ? "justify-center" : "gap-2.5 px-1"}`}>
+          <div className="w-7 h-7 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 shrink-0">
             {initials}
           </div>
           {!collapsed && (
-            <div className="truncate text-xs text-muted-foreground">{userEmail}</div>
+            <div className="flex-1 min-w-0 flex items-center justify-between">
+              <span className="truncate text-xs text-muted-foreground">{userEmail}</span>
+              <NotificationBell />
+            </div>
           )}
         </div>
 
-        {/* Theme toggle */}
-        <div className={collapsed ? "" : "px-1"}>
+        {/* Theme toggle + sign out row */}
+        <div className={`flex items-center ${collapsed ? "flex-col gap-2" : "gap-2 px-1"}`}>
           <ThemeToggle compact={collapsed} />
-        </div>
-
-        {/* Sign out */}
-        <button
-          onClick={handleSignOut}
-          title={collapsed ? "Sign out" : undefined}
-          className={`
-            rounded-lg border border-border text-muted-foreground text-xs cursor-pointer transition-colors
-            hover:text-foreground hover:border-indigo-500/20
-            ${collapsed ? "p-2" : "px-3 py-1.5 text-left"}
-          `}
-        >
-          {collapsed ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          ) : (
-            "Sign out"
-          )}
-        </button>
-
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="rounded-lg border border-border p-1.5 text-muted-foreground cursor-pointer transition-colors hover:text-foreground hover:border-indigo-500/20 self-center"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`transition-transform ${collapsed ? "rotate-180" : ""}`}
+          <button
+            onClick={handleSignOut}
+            title={collapsed ? "Sign out" : undefined}
+            className={`
+              rounded-md border border-border text-muted-foreground text-[11px] cursor-pointer transition-colors
+              hover:text-foreground hover:border-indigo-500/20
+              ${collapsed ? "p-1.5" : "px-2 py-1"}
+            `}
           >
-            <polyline points="11 17 6 12 11 7" />
-            <polyline points="18 17 13 12 18 7" />
-          </svg>
-        </button>
+            {collapsed ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            ) : (
+              "Sign out"
+            )}
+          </button>
+        </div>
       </div>
     </aside>
   )

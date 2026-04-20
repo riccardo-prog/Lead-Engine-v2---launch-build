@@ -5,8 +5,9 @@ import Link from "next/link"
 import type { Lead } from "@/types/database"
 import type { FunnelStage, LeadSource } from "@/config/schema"
 
-function getTemperature(lead: Lead): "hot" | "warm" | "cold" | "booked" {
+function getTemperature(lead: Lead): "hot" | "warm" | "cold" | "booked" | "none" {
   if (lead.stage_id === "booked") return "booked"
+  if (lead.score <= 0) return "none"
   if (lead.score >= 70) return "hot"
   if (lead.score >= 40) return "warm"
   return "cold"
@@ -17,14 +18,15 @@ const tempStyles: Record<string, string> = {
   warm: "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.4)]",
   cold: "bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.3)]",
   booked: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.4)]",
+  none: "bg-muted-foreground/40",
 }
 
 const stageBadgeStyles: Record<string, string> = {
-  new: "text-indigo-400 bg-indigo-400/[0.08]",
-  contacted: "text-amber-400 bg-amber-400/[0.08]",
-  nurturing: "text-indigo-300 bg-indigo-500/[0.08]",
-  qualified: "text-emerald-400 bg-emerald-400/[0.08]",
-  booked: "text-cyan-400 bg-cyan-400/[0.08]",
+  new: "text-indigo-600 dark:text-indigo-400 bg-indigo-500/[0.08]",
+  contacted: "text-amber-600 dark:text-amber-400 bg-amber-500/[0.08]",
+  nurturing: "text-indigo-500 dark:text-indigo-300 bg-indigo-500/[0.08]",
+  qualified: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.08]",
+  booked: "text-cyan-600 dark:text-cyan-400 bg-cyan-500/[0.08]",
 }
 
 export function PipelineView({
@@ -174,7 +176,7 @@ export function PipelineView({
                   {relative}
                 </div>
                 <div className="text-right tabular-nums">
-                  {lead.score}
+                  {lead.score > 0 ? lead.score : <span className="text-muted-foreground">—</span>}
                 </div>
               </div>
             </Link>

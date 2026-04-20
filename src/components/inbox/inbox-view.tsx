@@ -103,7 +103,7 @@ export function InboxView({
           {/* Left panel — action list */}
           <div className="border border-border rounded-xl bg-card overflow-auto">
             <div className="px-4 py-3 border-b border-border">
-              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
                 {actions.length} Pending
               </span>
             </div>
@@ -149,7 +149,7 @@ export function InboxView({
                   <div className="text-[13px] text-muted-foreground mt-1">
                     {currentLead.email || "—"} · {stageMap[currentLead.stage_id] || currentLead.stage_id}
                     {current.action_type === "send_message" && (
-                      <span className="ml-2 text-[11px] px-2 py-0.5 rounded bg-indigo-500/[0.08] text-indigo-400">
+                      <span className="ml-2 text-[11px] px-2 py-0.5 rounded bg-indigo-500/[0.08] text-indigo-600 dark:text-indigo-400">
                         via {inferChannelLabel(currentLead)}
                       </span>
                     )}
@@ -158,7 +158,7 @@ export function InboxView({
 
                 {/* AI reasoning */}
                 <div>
-                  <div className="text-[10px] font-semibold text-indigo-400 uppercase tracking-[0.05em] mb-2">
+                  <div className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.05em] mb-2">
                     AI Reasoning
                   </div>
                   <div className="bg-indigo-500/[0.04] border border-indigo-500/[0.08] rounded-lg px-4 py-3 text-sm leading-relaxed">
@@ -224,7 +224,7 @@ export function InboxView({
                       <button
                         onClick={() => setMode("edit")}
                         disabled={busy || !current.proposed_content}
-                        className={`flex-1 py-3 rounded-lg border border-indigo-500/15 text-indigo-400 text-sm font-medium transition-colors ${busy || !current.proposed_content ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-indigo-500/[0.06]"}`}
+                        className={`flex-1 py-3 rounded-lg border border-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-sm font-medium transition-colors ${busy || !current.proposed_content ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-indigo-500/[0.06]"}`}
                       >
                         Edit
                       </button>
