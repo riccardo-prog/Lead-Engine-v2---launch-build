@@ -14,7 +14,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar userEmail={user.email || ""} />
+      <Sidebar userEmail={user.email || ""} userName={user.user_metadata?.full_name || user.user_metadata?.name || null} />
       <main className="flex-1 overflow-y-auto bg-background p-8">
         {children}
       </main>

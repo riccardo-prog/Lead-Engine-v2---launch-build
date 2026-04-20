@@ -41,7 +41,7 @@ const navItems = [
   },
 ]
 
-export function Sidebar({ userEmail }: { userEmail: string }) {
+export function Sidebar({ userEmail, userName }: { userEmail: string; userName?: string | null }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -64,9 +64,12 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
     router.refresh()
   }
 
-  const initials = userEmail
-    ? userEmail.split("@")[0].slice(0, 2).toUpperCase()
-    : "?"
+  const displayName = userName || userEmail
+  const initials = userName
+    ? userName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+    : userEmail
+      ? userEmail.split("@")[0].slice(0, 2).toUpperCase()
+      : "?"
 
   return (
     <aside
@@ -158,7 +161,7 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <span className="truncate text-xs text-muted-foreground">{userEmail}</span>
+              <span className="truncate text-xs text-muted-foreground">{displayName}</span>
             </div>
           )}
         </div>
