@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   if (body.aiPersonaTone !== undefined) {
-    if (!VALID_TONES.includes(body.aiPersonaTone)) {
+    if (!(VALID_TONES as readonly string[]).includes(body.aiPersonaTone as string)) {
       return NextResponse.json({ error: `Invalid tone. Must be one of: ${VALID_TONES.join(", ")}` }, { status: 400 })
     }
     persona.tone = body.aiPersonaTone
