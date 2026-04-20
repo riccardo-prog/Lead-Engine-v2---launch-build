@@ -29,7 +29,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       <span
         className={`
           absolute top-[2px] flex items-center justify-center rounded-full text-[9px] transition-all
-          ${compact ? "w-4 h-4" : "w-4 h-4"}
+          w-4 h-4
           ${isDark
             ? "right-[2px] left-auto bg-indigo-500 text-white shadow-[0_0_8px_rgba(99,102,241,0.4)]"
             : "left-[2px] right-auto bg-white text-gray-600 border border-black/8 shadow-sm"
