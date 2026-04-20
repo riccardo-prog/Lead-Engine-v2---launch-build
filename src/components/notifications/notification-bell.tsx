@@ -17,7 +17,7 @@ function notificationMeta(type: string): { icon: string; color: string } {
   }
 }
 
-export function NotificationBell() {
+export function NotificationBell({ collapsed }: { collapsed?: boolean } = {}) {
   const { items, unreadCount, markRead, markAllRead, dismiss } = useNotifications()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -59,18 +59,24 @@ export function NotificationBell() {
       <button
         onClick={() => setOpen((prev) => !prev)}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
-        className="relative p-1.5 rounded-md text-muted-foreground hover:text-foreground bg-transparent border-none cursor-pointer flex items-center justify-center transition-colors"
+        className={`
+          relative rounded-lg text-muted-foreground hover:text-foreground bg-transparent border border-transparent hover:bg-indigo-500/[0.04] hover:border-indigo-500/[0.08] cursor-pointer flex items-center transition-colors
+          ${collapsed ? "justify-center p-2" : "gap-2.5 px-3 py-2 w-full"}
+        `}
       >
-        <BellIcon />
-        {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-4 h-4 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 text-[10px] text-white font-semibold flex items-center justify-center px-1 leading-none">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
+        <span className="relative">
+          <BellIcon />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 text-[10px] text-white font-semibold flex items-center justify-center px-1 leading-none">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </span>
+        {!collapsed && <span className="text-[13px] font-medium">Notifications</span>}
       </button>
 
       {open && (
-        <div className="absolute top-[calc(100%+8px)] left-0 w-[340px] max-h-[420px] bg-card border border-border rounded-xl shadow-lg overflow-hidden flex flex-col z-50">
+        <div className="absolute left-[calc(100%+8px)] top-0 w-[340px] max-h-[420px] bg-card border border-border rounded-xl shadow-lg overflow-hidden flex flex-col z-50">
           {/* Header */}
           <div className="px-4 py-3 border-b border-border flex justify-between items-center">
             <span className="text-sm font-medium">Notifications</span>

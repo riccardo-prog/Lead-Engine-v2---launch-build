@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import type { Lead, AIAction } from "@/types/database"
+import type { Lead, AIAction, Message } from "@/types/database"
 import type { FunnelStage } from "@/config/schema"
 
 export function InboxView({
   actions,
   leadMap,
+  messagesByLead,
   stages,
 }: {
   actions: AIAction[]
   leadMap: Record<string, Lead>
+  messagesByLead: Record<string, Message[]>
   stages: FunnelStage[]
 }) {
   const [selected, setSelected] = useState<string | null>(actions[0]?.id || null)
@@ -155,6 +157,48 @@ export function InboxView({
                     )}
                   </div>
                 </div>
+
+                {/* Conversation context */}
+                {currentLead && messagesByLead[currentLead.id]?.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.05em] mb-2">
+                      Recent Conversation
+                    </div>
+                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg overflow-hidden max-h-[240px] overflow-y-auto">
+                      {messagesByLead[currentLead.id].map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`px-4 py-2.5 border-b border-border last:border-b-0 text-sm ${
+                            msg.direction === "inbound"
+                              ? "bg-transparent"
+                              : "bg-indigo-500/[0.03]"
+                          }`}
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <span className={`text-[11px] font-medium ${
+                              msg.direction === "inbound"
+                                ? "text-cyan-600 dark:text-cyan-400"
+                                : "text-indigo-600 dark:text-indigo-400"
+                            }`}>
+                              {msg.direction === "inbound" ? "Lead" : "AI"}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(msg.created_at).toLocaleString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <div className="text-[13px] leading-relaxed text-foreground whitespace-pre-wrap line-clamp-4">
+                            {msg.content}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* AI reasoning */}
                 <div>

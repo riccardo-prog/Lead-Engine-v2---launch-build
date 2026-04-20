@@ -5,9 +5,10 @@ import Link from "next/link"
 import type { Lead } from "@/types/database"
 import type { FunnelStage, LeadSource } from "@/config/schema"
 
-function getTemperature(lead: Lead): "hot" | "warm" | "cold" | "booked" | "none" {
+function getTemperature(lead: Lead): "hot" | "warm" | "cold" | "booked" {
   if (lead.stage_id === "booked") return "booked"
-  if (lead.score <= 0) return "none"
+  if (lead.summary?.temperature) return lead.summary.temperature
+  // Fallback if no AI summary yet
   if (lead.score >= 70) return "hot"
   if (lead.score >= 40) return "warm"
   return "cold"
@@ -18,7 +19,6 @@ const tempStyles: Record<string, string> = {
   warm: "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.4)]",
   cold: "bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.3)]",
   booked: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.4)]",
-  none: "bg-muted-foreground/40",
 }
 
 const stageBadgeStyles: Record<string, string> = {
@@ -39,13 +39,23 @@ export function PipelineView({
   leads: Lead[]
 }) {
   const [activeStage, setActiveStage] = useState<string | "all">("all")
+  const [activeTemp, setActiveTemp] = useState<string | "all">("all")
+  const [activeType, setActiveType] = useState<string | "all">("all")
+  const [scoreMin, setScoreMin] = useState("")
+  const [scoreMax, setScoreMax] = useState("")
   const [search, setSearch] = useState("")
 
   const sortedStages = [...stages].sort((a, b) => a.order - b.order)
 
   const filtered = useMemo(() => {
+    const minScore = scoreMin ? parseInt(scoreMin, 10) : null
+    const maxScore = scoreMax ? parseInt(scoreMax, 10) : null
     return leads.filter((l) => {
       if (activeStage !== "all" && l.stage_id !== activeStage) return false
+      if (activeTemp !== "all" && getTemperature(l) !== activeTemp) return false
+      if (activeType !== "all" && (l.lead_type || "unknown") !== activeType) return false
+      if (minScore !== null && !isNaN(minScore) && l.score < minScore) return false
+      if (maxScore !== null && !isNaN(maxScore) && l.score > maxScore) return false
       if (search) {
         const q = search.toLowerCase()
         const name = `${l.first_name || ""} ${l.last_name || ""}`.toLowerCase()
@@ -54,7 +64,7 @@ export function PipelineView({
       }
       return true
     })
-  }, [leads, activeStage, search])
+  }, [leads, activeStage, activeTemp, activeType, scoreMin, scoreMax, search])
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = { all: leads.length }
@@ -113,14 +123,75 @@ export function PipelineView({
         ))}
       </div>
 
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="Search leads..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="px-3.5 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm outline-none max-w-xs focus:border-indigo-500/30 transition-colors"
-      />
+      {/* Temperature filter pills */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="text-xs text-muted-foreground uppercase tracking-wide mr-1">Temp</span>
+        {(["all", "hot", "warm", "cold", "booked"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setActiveTemp(t)}
+            className={`
+              px-2.5 py-1 rounded-md text-[12px] font-medium cursor-pointer flex items-center gap-1.5 transition-colors border
+              ${activeTemp === t
+                ? "bg-indigo-500/15 border-indigo-500/20 text-foreground"
+                : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-indigo-500/10"
+              }
+            `}
+          >
+            {t !== "all" && <span className={`w-1.5 h-1.5 rounded-full ${tempStyles[t]}`} />}
+            {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Lead type filter pills */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="text-xs text-muted-foreground uppercase tracking-wide mr-1">Type</span>
+        {(["all", "buyer", "seller", "investor", "unknown"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setActiveType(t)}
+            className={`
+              px-2.5 py-1 rounded-md text-[12px] font-medium cursor-pointer transition-colors border
+              ${activeType === t
+                ? "bg-indigo-500/15 border-indigo-500/20 text-foreground"
+                : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-indigo-500/10"
+              }
+            `}
+          >
+            {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Search + score range */}
+      <div className="flex gap-3 flex-wrap items-center">
+        <input
+          type="text"
+          placeholder="Search leads..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="px-3.5 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm outline-none max-w-xs focus:border-indigo-500/30 transition-colors"
+        />
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground uppercase tracking-wide">Score</span>
+          <input
+            type="number"
+            placeholder="Min"
+            value={scoreMin}
+            onChange={(e) => setScoreMin(e.target.value)}
+            className="w-16 px-2 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm outline-none text-center tabular-nums focus:border-indigo-500/30 transition-colors"
+          />
+          <span className="text-muted-foreground text-xs">–</span>
+          <input
+            type="number"
+            placeholder="Max"
+            value={scoreMax}
+            onChange={(e) => setScoreMax(e.target.value)}
+            className="w-16 px-2 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm outline-none text-center tabular-nums focus:border-indigo-500/30 transition-colors"
+          />
+        </div>
+      </div>
 
       {/* Table */}
       <div className="border border-indigo-500/[0.06] rounded-xl overflow-hidden bg-card">
@@ -176,7 +247,7 @@ export function PipelineView({
                   {relative}
                 </div>
                 <div className="text-right tabular-nums">
-                  {lead.score > 0 ? lead.score : <span className="text-muted-foreground">—</span>}
+                  {lead.score}
                 </div>
               </div>
             </Link>

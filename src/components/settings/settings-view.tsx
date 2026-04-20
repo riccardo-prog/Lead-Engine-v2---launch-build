@@ -133,22 +133,20 @@ export function SettingsView({
         </div>
       </div>
 
-      {/* Client config */}
+      {/* Editable config */}
+      <ConfigEditor config={config} />
+
+      {/* Read-only info */}
       <div className="bg-card border border-border rounded-xl p-6 flex flex-col gap-4">
         <div>
-          <div className="text-base font-medium">Client</div>
+          <div className="text-base font-medium">System</div>
           <div className="text-[13px] text-muted-foreground mt-1">
-            Read-only for now. Edit in the config file.
+            These settings are managed in the config file.
           </div>
         </div>
-
         <div className="grid grid-cols-2 gap-3 text-[13px]">
-          <InfoRow label="Business" value={config.businessName} />
           <InfoRow label="Industry" value={config.industry} />
-          <InfoRow label="AI persona" value={config.aiPersona.name} />
-          <InfoRow label="Tone" value={config.aiPersona.tone} />
           <InfoRow label="Jurisdiction" value={config.jurisdiction} />
-          <InfoRow label="Approval mode" value={config.humanApprovalRequired ? "Human approval required" : "Autonomous"} />
         </div>
       </div>
     </div>
@@ -199,6 +197,186 @@ function IntegrationRow({
           Connect
         </button>
       )}
+    </div>
+  )
+}
+
+const TONE_OPTIONS = ["professional", "friendly", "casual", "formal"] as const
+
+function ConfigEditor({ config }: { config: ClientConfig }) {
+  const router = useRouter()
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+
+  const [businessName, setBusinessName] = useState(config.businessName)
+  const [personaName, setPersonaName] = useState(config.aiPersona.name)
+  const [tone, setTone] = useState(config.aiPersona.tone)
+  const [voice, setVoice] = useState(config.aiPersona.voice)
+  const [doNotSay, setDoNotSay] = useState(config.aiPersona.doNotSay.join(", "))
+  const [alwaysSay, setAlwaysSay] = useState(config.aiPersona.alwaysSay.join(", "))
+  const [approvalRequired, setApprovalRequired] = useState(config.humanApprovalRequired)
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveMessage(null)
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName,
+          aiPersonaName: personaName,
+          aiPersonaTone: tone,
+          aiPersonaVoice: voice,
+          aiPersonaDoNotSay: doNotSay,
+          aiPersonaAlwaysSay: alwaysSay,
+          humanApprovalRequired: approvalRequired,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setSaveMessage({ type: "error", text: data.error || "Failed to save" })
+        return
+      }
+      setSaveMessage({ type: "success", text: "Settings saved." })
+      router.refresh()
+    } catch {
+      setSaveMessage({ type: "error", text: "Network error. Please try again." })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 flex flex-col gap-5">
+      <div>
+        <div className="text-base font-medium">AI & Business</div>
+        <div className="text-[13px] text-muted-foreground mt-1">
+          Configure your business identity and how the AI communicates with leads.
+        </div>
+      </div>
+
+      {saveMessage && (
+        <div className={`px-4 py-3 rounded-lg text-[13px] ${
+          saveMessage.type === "success"
+            ? "bg-green-500/10 border border-green-500/30 text-green-600 dark:text-green-400"
+            : "bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400"
+        }`}>
+          {saveMessage.text}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4">
+        <FieldRow label="Business name">
+          <input
+            type="text"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-indigo-500/30 transition-colors"
+          />
+        </FieldRow>
+
+        <FieldRow label="AI assistant name">
+          <input
+            type="text"
+            value={personaName}
+            onChange={(e) => setPersonaName(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-indigo-500/30 transition-colors"
+          />
+        </FieldRow>
+
+        <FieldRow label="Tone">
+          <select
+            value={tone}
+            onChange={(e) => setTone(e.target.value as typeof tone)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-indigo-500/30 transition-colors cursor-pointer"
+          >
+            {TONE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+
+        <FieldRow label="Voice" hint="Describe the AI's personality and communication style">
+          <textarea
+            value={voice}
+            onChange={(e) => setVoice(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-indigo-500/30 transition-colors resize-y"
+          />
+        </FieldRow>
+
+        <FieldRow label="Never say" hint="Comma-separated words or phrases the AI should avoid">
+          <input
+            type="text"
+            value={doNotSay}
+            onChange={(e) => setDoNotSay(e.target.value)}
+            placeholder="e.g. guaranteed, best price, act now"
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-indigo-500/30 transition-colors"
+          />
+        </FieldRow>
+
+        <FieldRow label="Always include" hint="Comma-separated phrases the AI should always use">
+          <input
+            type="text"
+            value={alwaysSay}
+            onChange={(e) => setAlwaysSay(e.target.value)}
+            placeholder="e.g. Happy to help, Let me check with the team"
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-indigo-500/30 transition-colors"
+          />
+        </FieldRow>
+
+        <FieldRow label="Approval mode">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setApprovalRequired(!approvalRequired)}
+              className={`
+                relative w-11 h-6 rounded-full cursor-pointer transition-colors
+                ${approvalRequired
+                  ? "bg-gradient-to-r from-indigo-500 to-cyan-500"
+                  : "bg-border"
+                }
+              `}
+            >
+              <span className={`
+                absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform
+                ${approvalRequired ? "left-[22px]" : "left-0.5"}
+              `} />
+            </button>
+            <span className="text-sm text-muted-foreground">
+              {approvalRequired ? "Human approval required" : "Autonomous — AI sends without approval"}
+            </span>
+          </div>
+        </FieldRow>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={`
+            px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 text-white text-sm font-medium transition-opacity
+            ${saving ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:opacity-90"}
+          `}
+        >
+          {saving ? "Saving..." : "Save changes"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function FieldRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div>
+        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{label}</div>
+        {hint && <div className="text-[11px] text-muted-foreground/70 mt-0.5">{hint}</div>}
+      </div>
+      {children}
     </div>
   )
 }

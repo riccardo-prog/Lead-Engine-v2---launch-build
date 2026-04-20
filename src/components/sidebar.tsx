@@ -141,23 +141,24 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
         })}
       </nav>
 
+      {/* Notification bell — right below nav */}
+      <div className={`px-2 mt-2 ${collapsed ? "flex justify-center" : ""}`}>
+        <NotificationBell collapsed={collapsed} />
+      </div>
+
       {/* Spacer */}
       <div className="flex-1" />
 
       {/* Footer — compact group */}
       <div className={`flex flex-col gap-2 px-2 pb-3 ${collapsed ? "items-center" : ""}`}>
-        {/* Notification bell (collapsed only — in expanded it's near the nav) */}
-        {collapsed && <NotificationBell />}
-
         {/* User row */}
         <div className={`flex items-center ${collapsed ? "justify-center" : "gap-2.5 px-1"}`}>
           <div className="w-7 h-7 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 shrink-0">
             {initials}
           </div>
           {!collapsed && (
-            <div className="flex-1 min-w-0 flex items-center justify-between">
+            <div className="flex-1 min-w-0">
               <span className="truncate text-xs text-muted-foreground">{userEmail}</span>
-              <NotificationBell />
             </div>
           )}
         </div>

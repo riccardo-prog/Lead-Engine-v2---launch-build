@@ -1,0 +1,151 @@
+import { ClientConfig } from "./schema"
+
+export const josephConfig: ClientConfig = {
+  clientId: "joseph-real-estate",
+  businessName: "Joseph Pavone Real Estate",
+  industry: "real_estate",
+  jurisdiction: "CASL",
+  humanApprovalRequired: true,
+  operatorEmail: process.env.OPERATOR_EMAIL || "",
+
+  funnelStages: [
+    { id: "new", label: "New Lead", description: "Just came in", order: 1, autoAdvance: false },
+    { id: "contacted", label: "Contacted", description: "First message sent", order: 2, autoAdvance: false },
+    { id: "nurturing", label: "Nurturing", description: "Actively in conversation", order: 3, autoAdvance: false },
+    { id: "qualified", label: "Qualified", description: "Ready to book", order: 4, autoAdvance: false },
+    { id: "booked", label: "Booked", description: "Appointment set", order: 5, autoAdvance: false },
+    { id: "closed", label: "Closed", description: "Deal done", order: 6, autoAdvance: false },
+  ],
+
+  leadSources: [
+    { id: "realtor-email", type: "email_parse", label: "Realtor.ca Email", funnelStageOnEntry: "new" },
+    { id: "facebook-ad", type: "meta_ad", label: "Facebook Ads", funnelStageOnEntry: "new" },
+    { id: "instagram-dm", type: "meta_ad", label: "Instagram DMs", funnelStageOnEntry: "new" },
+    { id: "facebook-dm", type: "meta_ad", label: "Facebook Messenger", funnelStageOnEntry: "new" },
+    { id: "manual", type: "manual", label: "Manual Entry", funnelStageOnEntry: "new" },
+    { id: "csv", type: "csv_import", label: "CSV Import", funnelStageOnEntry: "new" },
+  ],
+
+  channels: ["email", "sms", "instagram_dm", "facebook_dm"],
+
+  aiPersona: {
+    name: "Alex",
+    role: "Real estate assistant for Joseph Pavone",
+    tone: "friendly",
+    voice: "Warm, knowledgeable, never pushy. Speaks like a trusted advisor not a salesperson.",
+    doNotSay: ["guaranteed", "best price", "act now", "limited time"],
+    alwaysSay: [],
+  },
+
+  messagingRules: [
+    {
+      channel: "email",
+      maxPerDay: 1,
+      allowedHoursStart: 8,
+      allowedHoursEnd: 20,
+      timezone: "America/Toronto",
+      requireOptIn: false,
+    },
+    {
+      channel: "sms",
+      maxPerDay: 1,
+      allowedHoursStart: 9,
+      allowedHoursEnd: 20,
+      timezone: "America/Toronto",
+      requireOptIn: true,
+    },
+    {
+      channel: "facebook_dm",
+      maxPerDay: 3,
+      allowedHoursStart: 8,
+      allowedHoursEnd: 21,
+      timezone: "America/Toronto",
+      requireOptIn: false,
+    },
+    {
+      channel: "instagram_dm",
+      maxPerDay: 3,
+      allowedHoursStart: 8,
+      allowedHoursEnd: 21,
+      timezone: "America/Toronto",
+      requireOptIn: false,
+    },
+  ],
+
+  qualification: {
+    requiredFields: ["name", "email", "buying_or_selling", "timeline"],
+    disqualifyIf: ["no_budget", "just_browsing_no_timeline"],
+    scoreThresholdToBook: 70,
+  },
+
+  booking: {
+    provider: "cal.com",
+    url: process.env.JOSEPH_BOOKING_URL || "",
+    meetingType: "Discovery Call",
+    reminderHours: [24, 1],
+  },
+
+  conversationScripts: [
+    {
+      leadType: "seller",
+      label: "Seller",
+      detection: "Lead mentions selling their home, getting a valuation, listing their property, or their source/custom_fields indicate a seller inquiry.",
+      channelPreference: "Prefer to prompt the lead to call Joseph directly. If there is resistance or they prefer text/email, continue the qualification over message.",
+      steps: [
+        "What is the property address?",
+        "How long have you owned the home?",
+        "Are you looking to sell or just curious about the current market value?",
+        "If you did sell, where would you be headed next?",
+        "What is your ideal timeline?",
+        "On a scale of 1 to 10, how would you rate the condition of the home?",
+        "Are there any defects or issues that could prevent the home from selling?",
+        "Are you planning on interviewing more than 1 agent?",
+        "Are there any properties nearby that you felt were comparable to yours?",
+        "Based on those sales, what price were you hoping to achieve in today's market?",
+        "Is there any renovations or repairs you would want to do before you list or is your property ready to be staged and hit the market?",
+        "What would be the best day for me to come and take a look at the property and present an up to date market evaluation on your home's value? → Prompt booking calendar (book_appointment with send_link).",
+      ],
+    },
+    {
+      leadType: "buyer",
+      label: "Buyer",
+      detection: "Lead mentions buying a home, looking for properties, first-time buyer, house hunting, or their source indicates a buyer inquiry. If they say 'just browsing', respond: \"That's totally fine! Most of my clients start there. I'll set you up on a custom search so you can see the 'Sold' prices in real-time—would that be helpful?\"",
+      channelPreference: "Prefer to prompt the lead to call Joseph directly. If there is resistance or they prefer text/email, continue the qualification over message.",
+      steps: [
+        "Are you a first time home buyer? Looking to buy a house to sell? Looking to invest in a property or buy a second home? → If first-time buyer: continue this script. If looking to buy & sell: switch to seller script. If investor or second home: switch to investor script.",
+        "Are you just starting your search or have you been out looking at homes for a while?",
+        "Are you currently working with an agent?",
+        "Do you have a signed agreement with that agent?",
+        "Have you had a chance to speak with a mortgage specialist to get pre-approved? → If yes: What is your budget? If no: \"Don't worry we can get that sorted out soon.\"",
+        "What is encouraging your decision to buy now?",
+        "Are there any properties that have sold recently that you really liked?",
+        "What areas are you most interested in?",
+        "Is there any areas you would not consider?",
+        "Besides price and location, what are some things the house must have?",
+        "If we found this perfect house this weekend, are you in a position to move on it, or is your move date further out? → If no: \"What is your ideal timeline?\"",
+        "There are a couple similar properties available and some exclusive off-market properties in my office, would you want me to share these properties with you? → Prompt for contact information if not already provided.",
+        "Our next step is to meet at my office for a 1 on 1 Workshop to discuss the buying process in further detail. Would that be something of interest to you? → If yes: prompt booking calendar (book_appointment with send_link). If no: ask \"Are there any properties on the market right now you'd like to schedule a showing at?\" If also no: \"Would you like to be notified of any properties that hit the market that suit your needs?\"",
+      ],
+    },
+    {
+      leadType: "investor",
+      label: "Investor",
+      detection: "Lead mentions investment property, rental property, cap rate, ROI, portfolio, or buying a second/third property for investment purposes.",
+      channelPreference: "Prefer to prompt the lead to call Joseph directly. If there is resistance or they prefer text/email, continue the qualification over message.",
+      steps: [
+        "Are you just starting your search or have you been out looking at homes for a while?",
+        "Are you currently working with an agent?",
+        "Do you have a signed agreement with that agent?",
+        "Have you had a chance to speak with a mortgage specialist to get pre-approved? → If yes: What is your budget? If no: \"Don't worry we can get that sorted out soon.\"",
+        "What is encouraging your decision to buy now?",
+        "Are there any properties that have sold recently that you really liked?",
+        "What areas are you most interested in?",
+        "Is there any areas you would not consider?",
+        "Besides price and location, what are some things the house must have?",
+        "If we found this perfect house this weekend, are you in a position to move on it, or is your move date further out? → If no: \"What is your ideal timeline?\"",
+        "There are a couple similar properties available and some exclusive off-market properties in my office, would you want me to share these properties with you? → Prompt for contact information if not already provided.",
+        "I have an investors presentation that breaks down all the best investment locations in North Bay based on cap rate, vacancies, and desirable rental location, would that be beneficial to you? → If yes: prompt booking calendar (book_appointment with send_link). If no: \"Are there any properties on the market right now that you would like to schedule a showing at?\"",
+      ],
+    },
+  ],
+}
