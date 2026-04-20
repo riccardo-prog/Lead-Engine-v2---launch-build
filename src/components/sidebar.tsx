@@ -25,8 +25,7 @@ const navItems = [
     label: "Inbox",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-        <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
       </svg>
     ),
   },
@@ -73,7 +72,7 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
   return (
     <aside
       className={`
-        flex flex-col border-r border-indigo-500/[0.08] dark:border-indigo-500/[0.08] bg-sidebar shrink-0 transition-all duration-200
+        flex flex-col border-r border-indigo-500/[0.08] bg-sidebar shrink-0 transition-all duration-200
         ${collapsed ? "w-14" : "w-[220px]"}
       `}
     >
@@ -112,7 +111,7 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
                 flex items-center gap-2.5 rounded-lg text-[13px] font-medium transition-colors no-underline
                 ${collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2"}
                 ${active
-                  ? "bg-indigo-500/10 border border-indigo-500/[0.12] text-foreground dark:text-foreground text-indigo-600 dark:text-foreground"
+                  ? "bg-indigo-500/10 border border-indigo-500/[0.12] text-indigo-600 dark:text-foreground"
                   : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-indigo-500/[0.04]"
                 }
               `}
