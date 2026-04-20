@@ -42,7 +42,12 @@ export function requireBearerToken(request: NextRequest): AuthResult {
   const header = request.headers.get("authorization") || ""
   const token = header.startsWith("Bearer ") ? header.slice(7) : ""
 
-  if (!token || !constantTimeEqual(token, expected)) {
+  // Accept INTERNAL_API_SECRET or CRON_SECRET (Vercel crons use CRON_SECRET)
+  const cronSecret = process.env.CRON_SECRET
+  const matchesInternal = constantTimeEqual(token, expected)
+  const matchesCron = cronSecret ? constantTimeEqual(token, cronSecret) : false
+
+  if (!token || (!matchesInternal && !matchesCron)) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),

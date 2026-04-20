@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/outlook/poll",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/scheduled/flush",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/scheduled/follow-up",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
