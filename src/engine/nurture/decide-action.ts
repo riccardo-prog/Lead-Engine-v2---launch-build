@@ -11,7 +11,7 @@ export type NurtureDecision = {
   subject?: string
   newStageId?: string
   scoreAdjustment?: number
-  leadType?: "seller" | "buyer" | "investor"
+  leadType?: string
   waitUntil?: string
   flagReason?: string
   bookingMode?: "specific_time" | "send_link"
@@ -57,12 +57,12 @@ IDENTITY RULES (CRITICAL):
 - If asked "who is this", say you're ${aiPersona.name}, assistant to ${businessName}.
 - Your role: ${aiPersona.role}
 
-FORM SUBMISSION VS REAL MESSAGE (CRITICAL):
-Some leads come from form submissions (like Realtor.ca) where the "message" in the conversation history is actually structured form data or a template message, NOT something the lead personally wrote.
-- When source is 'realtor-email' or similar form sources, the first inbound "message" is form data, not a personal message from the lead.
-- DO NOT respond as if they wrote to you personally. Instead, craft an initial outreach that references the specific property they inquired about, introduces yourself, and asks relevant questions to qualify them.
-- Use any custom fields like property_address, listing_number to make the message feel personal and informed.
-- Avoid phrases like "thanks for your message" or "as you mentioned" since they didn't actually message you — they filled out a form.
+${config.formSourceIds && config.formSourceIds.length > 0 ? `FORM SUBMISSION VS REAL MESSAGE (CRITICAL):
+Some leads come from form submissions where the "message" in the conversation history is actually structured form data or a template message, NOT something the lead personally wrote.
+- Form-based sources for this business: ${config.formSourceIds.join(", ")}
+- When a lead comes from one of these sources, the first inbound "message" is form data, not a personal message.
+- DO NOT respond as if they wrote to you personally. Instead, craft an initial outreach that references relevant details from custom_fields, introduces yourself, and asks qualifying questions.
+- Avoid phrases like "thanks for your message" or "as you mentioned" since they didn't actually message you — they filled out a form.` : ""}
 
 TONE AND VOICE:
 - Tone: ${aiPersona.tone}
@@ -102,9 +102,11 @@ You must follow these qualification scripts based on the lead type. Determine th
 IMPORTANT RULES FOR ALL SCRIPTS:
 - Ask ONE question at a time. Never dump multiple questions in a single message.
 - Track which questions have already been answered from prior messages — don't re-ask.
-- The preferred approach is to prompt the lead to call Joseph directly to go through these questions over the phone. If they resist or prefer text/email, continue over message.
-- Follow the branching logic in each step (e.g., buyer who wants to buy & sell → switch to seller script).
-- When a step says "prompt booking calendar", use the book_appointment action with bookingMode "send_link".
+${config.operatorName
+  ? `- When appropriate, offer the lead the option to speak directly with ${config.operatorName} instead of continuing over text. If they prefer text/email, continue the qualification over message.`
+  : `- Continue qualification over message unless the lead requests a phone call.`}
+- Follow the branching logic in each step (e.g., if a step has conditional instructions, follow them based on context).
+- When a step says "prompt booking calendar" or mentions dropping the booking link, use the book_appointment action with bookingMode "send_link".
 
 ${config.conversationScripts.map((script) => `--- ${script.label} Script ---
 Lead type detection: ${script.detection}
@@ -126,12 +128,12 @@ Respond with a JSON object matching this shape:
 {
   "action": "send_message" | "advance_stage" | "book_appointment" | "disqualify" | "wait" | "flag_human",
   "reasoning": "string - explain your decision clearly, 1-3 sentences",
-  "channel": "email" | "sms" | "instagram_dm" | "facebook_dm" | "whatsapp" (only if action is send_message),
+  "channel": "${config.channels.map(c => `"${c}"`).join(" | ")} (only if action is send_message)",
   "message": "string - the message body (only if action is send_message)",
   "subject": "string - email subject (only if channel is email)",
   "newStageId": "string - the stage id to advance to (only if action is advance_stage)",
-  "scoreAdjustment": number (optional, -30 to +30 — use larger values for clear buying/selling signals),
-  "leadType": "seller" | "buyer" | "investor" (optional — set this once you can determine it from context),
+  "scoreAdjustment": number (optional, -30 to +30 — use larger values for clear intent signals),
+  "leadType": ${config.conversationScripts.map(s => `"${s.leadType}"`).join(" | ")} (optional — set this when you identify which script applies to this lead),
   "flagReason": "string (only if action is flag_human)",
   "bookingMode": "specific_time" | "send_link" (only if action is book_appointment),
   "requestedTime": "ISO 8601 datetime (only if bookingMode is specific_time)"
@@ -179,7 +181,7 @@ async function buildDecisionPrompt(
     ? (Date.now() - new Date(lastMessage.created_at).getTime()) / 1000 / 3600
     : null
 
-  const isFormSubmission = lead.source_id === "realtor-email" && messages.length <= 1
+  const isFormSubmission = config.formSourceIds?.includes(lead.source_id) && messages.length <= 1
 
   // Check 24h messaging windows for DM channels
   let fbWindowLabel = "not available"
@@ -241,7 +243,7 @@ You MUST incorporate this feedback. Do not repeat the same mistakes. Adjust the 
 - Tags: ${lead.tags.join(", ") || "none"}
 - Custom fields: ${JSON.stringify(lead.custom_fields)}
 
-${isFormSubmission ? "⚠️ FORM SUBMISSION: This is a Realtor.ca form inquiry, not a personal message. Craft an initial outreach referencing the specific property in custom_fields. Do NOT respond as if they wrote you a message." : ""}
+${isFormSubmission ? "⚠️ FORM SUBMISSION: This lead came from a form submission, not a personal message. The first inbound 'message' is structured form data. Craft an initial outreach that references relevant details from custom_fields. Do NOT respond as if they wrote you personally — avoid 'thanks for your message' or 'as you mentioned.'" : ""}
 ${feedbackBlock}
 
 CONVERSATION HISTORY (last 10 messages):
