@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase-server"
 import { checkCompliance } from "@/engine/compliance/compliance"
 import { sendEmailViaOutlook, getMicrosoftConnection } from "@/engine/messaging/microsoft-graph"
+import { sendEmailViaGmail, getGoogleConnection } from "@/engine/messaging/gmail"
 import { sendFacebookDM, sendInstagramDM, getMessagingWindowStatus } from "@/engine/messaging/meta-graph"
 import { getNextAllowedTime } from "@/lib/timezone"
 import type { Lead } from "@/types/database"
@@ -71,21 +72,35 @@ async function dispatchMessage({
     if (!lead.email) {
       return { success: false, reason: "Lead has no email address" }
     }
-    const connection = await getMicrosoftConnection(config.clientId)
-    if (!connection) {
+
+    // Try Outlook first, then Gmail
+    const msConnection = await getMicrosoftConnection(config.clientId)
+    const googleConn = !msConnection ? await getGoogleConnection(config.clientId) : null
+
+    if (!msConnection && !googleConn) {
       return {
         success: false,
-        reason: "No email account connected. Go to Settings and connect Microsoft Outlook.",
+        reason: "No email account connected. Go to Settings and connect Outlook or Gmail.",
       }
     }
 
-    const result = await sendEmailViaOutlook({
-      clientId: config.clientId,
-      toEmail: lead.email,
-      toName: [lead.first_name, lead.last_name].filter(Boolean).join(" "),
-      subject: subject || "Following up",
-      body: content,
-    })
+    const toName = [lead.first_name, lead.last_name].filter(Boolean).join(" ")
+
+    const result = msConnection
+      ? await sendEmailViaOutlook({
+          clientId: config.clientId,
+          toEmail: lead.email,
+          toName,
+          subject: subject || "Following up",
+          body: content,
+        })
+      : await sendEmailViaGmail({
+          clientId: config.clientId,
+          toEmail: lead.email,
+          toName,
+          subject: subject || "Following up",
+          body: content,
+        })
 
     if (!result.success) {
       return { success: false, reason: result.error || "Failed to send email" }

@@ -23,6 +23,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   user_fetch_failed: "Connected, but couldn't read your account info from Microsoft.",
   save_failed: "Connected to Microsoft, but saving the connection failed.",
   server_misconfigured: "Server configuration is missing. Contact support.",
+  google_rejected: "Google cancelled the connection. Try again.",
   meta_rejected: "Meta cancelled the connection. Try again.",
   meta_missing_code: "Meta didn't return an authorization code. Try again.",
   meta_token_exchange_failed: "Couldn't exchange the Meta code for a token. Try again.",
@@ -52,6 +53,7 @@ export function SettingsView({
   const router = useRouter()
 
   const microsoftConnection = connections.find((c) => c.provider === "microsoft")
+  const googleConnection = connections.find((c) => c.provider === "google")
   const metaConnection = connections.find((c) => c.provider === "meta")
   const displayError = friendlyError(errorMessage)
 
@@ -82,7 +84,9 @@ export function SettingsView({
 
       {justConnected && (
         <div className="px-4 py-3 bg-green-500/10 border border-green-500/30 text-green-600 dark:text-green-400 rounded-lg text-[13px]">
-          {justConnected === "microsoft" ? "Microsoft account connected." : `${justConnected} connected.`}
+          {justConnected === "microsoft" ? "Microsoft account connected."
+            : justConnected === "google" ? "Gmail account connected."
+            : `${justConnected} connected.`}
         </div>
       )}
 
@@ -115,6 +119,14 @@ export function SettingsView({
             accountLabel={microsoftConnection?.account_email || undefined}
             onConnect={() => { window.location.href = "/api/auth/microsoft/start" }}
             onDisconnect={microsoftConnection ? () => handleDisconnect(microsoftConnection.id) : undefined}
+          />
+          <IntegrationRow
+            name="Google Gmail"
+            description="Send and read emails through your Gmail account"
+            connected={!!googleConnection}
+            accountLabel={googleConnection?.account_email || undefined}
+            onConnect={() => { window.location.href = "/api/auth/google/start" }}
+            onDisconnect={googleConnection ? () => handleDisconnect(googleConnection.id) : undefined}
           />
           <IntegrationRow
             name="Meta (Facebook + Instagram)"
