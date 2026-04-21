@@ -121,6 +121,23 @@ export async function pollGmailForLeads(clientId: string): Promise<{
 
     const lead = leadRow as Lead
 
+    // Detect cold email replies: if this lead has outbound messages, the
+    // inbound email is a reply to our outreach → source = "cold-email-reply".
+    const isReply = !!(getHeader(message, "In-Reply-To") || getHeader(message, "References"))
+    let resolvedSource = lead.source_id
+
+    if (isReply) {
+      const { count } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("lead_id", lead.id)
+        .eq("direction", "outbound")
+
+      if (count && count > 0) {
+        resolvedSource = "cold-email-reply"
+      }
+    }
+
     try {
       if (HANDOFF_STAGES.has(lead.stage_id) || lead.disqualified) {
         await supabase.from("messages").insert({
@@ -149,7 +166,7 @@ export async function pollGmailForLeads(clientId: string): Promise<{
         await processIntake({
           config,
           payload: {
-            sourceId: lead.source_id,
+            sourceId: resolvedSource,
             email: lead.email || undefined,
             initialMessage: {
               channel: "email",
