@@ -33,10 +33,12 @@ export function PipelineView({
   stages,
   sources,
   leads,
+  leadTypes,
 }: {
   stages: FunnelStage[]
   sources: LeadSource[]
   leads: Lead[]
+  leadTypes: string[]
 }) {
   const [activeStage, setActiveStage] = useState<string | "all">("all")
   const [activeTemp, setActiveTemp] = useState<string | "all">("all")
@@ -147,7 +149,7 @@ export function PipelineView({
       {/* Lead type filter pills */}
       <div className="flex gap-2 flex-wrap items-center">
         <span className="text-xs text-muted-foreground uppercase tracking-wide mr-1">Type</span>
-        {(["all", "buyer", "seller", "investor", "unknown"] as const).map((t) => (
+        {(["all", ...leadTypes, "unknown"]).map((t) => (
           <button
             key={t}
             onClick={() => setActiveType(t)}
