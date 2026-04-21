@@ -64,6 +64,8 @@ export type ClientConfig = {
   businessName: string
   industry: string
   jurisdiction: ComplianceJurisdiction
+  operatorName?: string
+  formSourceIds?: string[]
   funnelStages: FunnelStage[]
   leadSources: LeadSource[]
   channels: ChannelType[]

@@ -7,6 +7,8 @@ export const josephConfig: ClientConfig = {
   jurisdiction: "CASL",
   humanApprovalRequired: true,
   operatorEmail: process.env.OPERATOR_EMAIL || "",
+  operatorName: "Joseph",
+  formSourceIds: ["realtor-email"],
 
   funnelStages: [
     { id: "new", label: "New Lead", description: "Just came in", order: 1, autoAdvance: false },
