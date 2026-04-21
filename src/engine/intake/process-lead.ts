@@ -8,6 +8,7 @@ import type { Lead, Message } from "@/types/database"
 
 export type IntakePayload = {
   sourceId: string
+  clientId?: string
   firstName?: string
   lastName?: string
   email?: string

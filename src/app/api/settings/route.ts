@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireSession } from "@/lib/api-auth"
-import { createServerSupabaseClient, createServiceClient } from "@/lib/supabase-server"
+import { getConfig, getClientIdFromSession } from "@/lib/config"
+import { createServiceClient } from "@/lib/supabase-server"
 
 const VALID_TONES = ["professional", "friendly", "casual", "formal"] as const
 
@@ -8,17 +9,17 @@ export async function POST(request: Request) {
   const auth = await requireSession()
   if (!auth.ok) return auth.response
 
-  // Derive client_id from the authenticated user's JWT, not an env var.
-  const userSupabase = await createServerSupabaseClient()
-  const { data: { user } } = await userSupabase.auth.getUser()
-  const clientId = user?.app_metadata?.client_id as string | undefined
-  if (!clientId) {
-    return NextResponse.json({ error: "No client_id in user metadata" }, { status: 403 })
-  }
+  // Derive client_id from the authenticated user's JWT.
+  const clientId = await getClientIdFromSession()
+  const config = await getConfig(clientId)
 
-  // Only the operator (owner) can modify settings.
-  const operatorId = process.env.OPERATOR_USER_ID
-  if (!operatorId || auth.userId !== operatorId) {
+  // Only the operator (owner) of this client can modify settings.
+  // Check against the config's operatorEmail or the legacy OPERATOR_USER_ID env var.
+  const userEmail = auth.userId ? await getUserEmail(auth.userId) : null
+  const isOperator =
+    (config.operatorEmail && userEmail && config.operatorEmail.toLowerCase() === userEmail.toLowerCase()) ||
+    (process.env.OPERATOR_USER_ID && auth.userId === process.env.OPERATOR_USER_ID)
+  if (!isOperator) {
     return NextResponse.json({ error: "Forbidden — only the account owner can change settings" }, { status: 403 })
   }
 
@@ -124,4 +125,10 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true })
+}
+
+async function getUserEmail(userId: string): Promise<string | null> {
+  const supabase = createServiceClient()
+  const { data } = await supabase.auth.admin.getUserById(userId)
+  return data?.user?.email || null
 }

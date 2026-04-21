@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { executeAction } from "@/engine/nurture/execute-action"
 import { requireSession } from "@/lib/api-auth"
 import { createServiceClient } from "@/lib/supabase-server"
-import { getConfig } from "@/lib/config"
+import { getClientIdFromSession } from "@/lib/config"
 
 export async function POST(request: NextRequest) {
   const auth = await requireSession()
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServiceClient()
-    const config = await getConfig()
+    const clientId = await getClientIdFromSession()
 
     // Atomically approve (and optionally override content) server-side.
     // The client never touches the ai_actions table.
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       .from("ai_actions")
       .update(updates)
       .eq("id", actionId)
-      .eq("client_id", config.clientId)
+      .eq("client_id", clientId)
       .eq("status", "pending")
 
     if (updateError) {

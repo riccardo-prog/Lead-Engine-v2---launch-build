@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
-import { getConfig } from "@/lib/config"
+import { getClientIdFromSession } from "@/lib/config"
 import { requireSession } from "@/lib/api-auth"
 import type { Notification } from "@/types/database"
 
@@ -10,12 +10,12 @@ export async function GET() {
 
   try {
     const supabase = createServiceClient()
-    const config = await getConfig()
+    const clientId = await getClientIdFromSession()
 
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
-      .eq("client_id", config.clientId)
+      .eq("client_id", clientId)
       .order("created_at", { ascending: false })
       .limit(50)
 

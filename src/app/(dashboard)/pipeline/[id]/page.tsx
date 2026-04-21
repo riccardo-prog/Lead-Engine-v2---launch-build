@@ -1,4 +1,4 @@
-import { getConfig } from "@/lib/config"
+import { getConfig, getClientIdFromSession } from "@/lib/config"
 import { createServerSupabaseClient, createServiceClient } from "@/lib/supabase-server"
 import { summarizeLead, type LeadSummary } from "@/engine/nurture/summarize-lead"
 import { LeadDetailView } from "@/components/pipeline/lead-detail-view"
@@ -11,7 +11,8 @@ export default async function LeadDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const config = await getConfig()
+  const clientId = await getClientIdFromSession()
+  const config = await getConfig(clientId)
   const supabase = await createServerSupabaseClient()
 
   const { data: leadData } = await supabase

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
-import { getConfig } from "@/lib/config"
 import { encryptToken } from "@/lib/token-crypto"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -32,13 +31,12 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServiceClient()
-  const config = await getConfig()
 
+  // Look up the oauth_states row — client_id is stored there from the start route.
   const { data: stateRow } = await supabase
     .from("oauth_states")
     .select("*")
     .eq("state", state)
-    .eq("client_id", config.clientId)
     .eq("provider", "microsoft")
     .maybeSingle()
 
@@ -53,7 +51,8 @@ export async function GET(request: NextRequest) {
 
   await supabase.from("oauth_states").delete().eq("state", state)
 
-  const clientId = process.env.MICROSOFT_OAUTH_CLIENT_ID!
+  const appClientId = stateRow.client_id as string
+  const msClientId = process.env.MICROSOFT_OAUTH_CLIENT_ID!
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!
   const tenantId = process.env.MICROSOFT_TENANT_ID || "common"
   const redirectUri = `${APP_URL}/api/auth/microsoft/callback`
@@ -64,7 +63,7 @@ export async function GET(request: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: clientId,
+        client_id: msClientId,
         client_secret: clientSecret,
         code,
         redirect_uri: redirectUri,
@@ -99,7 +98,7 @@ export async function GET(request: NextRequest) {
     .from("connections")
     .upsert(
       {
-        client_id: config.clientId,
+        client_id: appClientId,
         provider: "microsoft",
         account_email: email,
         account_id: accountId,

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
-import { getConfig } from "@/lib/config"
 import { encryptToken } from "@/lib/token-crypto"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -35,14 +34,12 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServiceClient()
-  const config = await getConfig()
 
-  // Validate CSRF state
+  // Validate CSRF state — client_id is stored in the state row from the start route.
   const { data: stateRow } = await supabase
     .from("oauth_states")
     .select("*")
     .eq("state", state)
-    .eq("client_id", config.clientId)
     .eq("provider", "meta")
     .maybeSingle()
 
@@ -131,7 +128,7 @@ export async function GET(request: NextRequest) {
     .from("connections")
     .upsert(
       {
-        client_id: config.clientId,
+        client_id: stateRow.client_id,
         provider: "meta",
         account_email: null,
         account_id: pageId,

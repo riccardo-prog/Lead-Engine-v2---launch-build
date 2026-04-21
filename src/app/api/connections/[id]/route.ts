@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
-import { getConfig } from "@/lib/config"
+import { getClientIdFromSession } from "@/lib/config"
 import { requireSession } from "@/lib/api-auth"
 
 export async function DELETE(
@@ -12,14 +12,14 @@ export async function DELETE(
 
   try {
     const { id } = await params
-    const config = await getConfig()
+    const clientId = await getClientIdFromSession()
     const supabase = createServiceClient()
 
     const { error } = await supabase
       .from("connections")
       .delete()
       .eq("id", id)
-      .eq("client_id", config.clientId)
+      .eq("client_id", clientId)
 
     if (error) {
       console.error("Failed to disconnect integration", error)

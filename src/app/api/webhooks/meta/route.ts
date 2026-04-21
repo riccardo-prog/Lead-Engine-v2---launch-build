@@ -4,6 +4,7 @@ import { processIntake } from "@/engine/intake/process-lead"
 import { parseLeadAdFields } from "@/engine/intake/meta-lead-parser"
 import { getMetaConnection, getValidMetaToken, fetchLeadAdData } from "@/engine/messaging/meta-graph"
 import { getConfig } from "@/lib/config"
+import { createServiceClient } from "@/lib/supabase-server"
 
 /**
  * GET — Webhook verification handshake.
@@ -111,96 +112,121 @@ type ChangeEvent = {
 async function processWebhookEvents(body: WebhookBody) {
   if (body.object !== "page") return
 
-  const config = await getConfig()
-  const connection = await getMetaConnection(config.clientId)
-  if (!connection) {
-    console.error("Meta webhook received but no connection found for client", config.clientId)
-    return
-  }
-
-  const igAccountId = connection.metadata.instagram_business_account_id
-
   for (const entry of body.entry) {
-    // Handle DM events (Messenger + Instagram)
-    if (entry.messaging) {
-      for (const event of entry.messaging) {
-        if (!event.message?.text) continue // Skip non-text events (reactions, read receipts, etc.)
+    // Look up which client owns this page by querying connections
+    const supabase = createServiceClient()
+    const { data: connRow } = await supabase
+      .from("connections")
+      .select("client_id, metadata")
+      .eq("provider", "meta")
+      .eq("account_id", entry.id)
+      .maybeSingle()
 
-        // Determine if this is Instagram or Messenger based on recipient ID
-        const isInstagram = igAccountId && entry.id === igAccountId
-        const sourceId = isInstagram ? "instagram-dm" : "facebook-dm"
-        const channel = isInstagram ? "instagram_dm" : "facebook_dm"
-
-        try {
-          await processIntake({
-            config,
-            payload: {
-              sourceId,
-              ...(isInstagram
-                ? { metaIgsid: event.sender.id }
-                : { metaPsid: event.sender.id }),
-              initialMessage: {
-                channel: channel as "facebook_dm" | "instagram_dm",
-                content: event.message.text,
-                externalId: event.message.mid,
-              },
-            },
-          })
-        } catch (e) {
-          console.error("Meta DM intake failed", { sourceId, senderId: event.sender.id, error: e })
-        }
-      }
+    if (!connRow) {
+      console.error("Meta webhook received for unknown page_id", entry.id)
+      continue
     }
 
-    // Handle Lead Ad events
-    if (entry.changes) {
-      for (const change of entry.changes) {
-        if (change.field !== "leadgen") continue
+    const clientId = connRow.client_id as string
+    const config = await getConfig(clientId)
+    const connection = await getMetaConnection(config.clientId)
+    if (!connection) {
+      console.error("Meta webhook: no connection found for client", clientId)
+      continue
+    }
 
-        try {
-          const token = await getValidMetaToken(connection)
-          const leadData = await fetchLeadAdData({
-            leadId: change.value.leadgen_id,
-            accessToken: token,
-          })
+    const igAccountId = connection.metadata.instagram_business_account_id
 
-          if (!leadData.success || !leadData.fields) {
-            console.error("Failed to fetch lead ad data", {
-              leadgenId: change.value.leadgen_id,
-              error: leadData.error,
-            })
-            continue
-          }
+    await processEntryForClient(entry, config, connection, igAccountId)
+  }
+}
 
-          const parsed = parseLeadAdFields(leadData.fields)
+async function processEntryForClient(
+  entry: WebhookEntry,
+  config: Awaited<ReturnType<typeof getConfig>>,
+  connection: Awaited<ReturnType<typeof getMetaConnection>>,
+  igAccountId: string | null,
+) {
+  if (!connection) return
 
-          if (!parsed.email && !parsed.phone) {
-            console.error("Lead ad has no contact info", {
-              leadgenId: change.value.leadgen_id,
-            })
-            continue
-          }
+  // Handle DM events (Messenger + Instagram)
+  if (entry.messaging) {
+    for (const event of entry.messaging) {
+      if (!event.message?.text) continue
 
-          await processIntake({
-            config,
-            payload: {
-              sourceId: "facebook-ad",
-              ...parsed,
-              initialMessage: parsed.email || parsed.phone
-                ? {
-                    channel: "email",
-                    content: `Lead Ad form submission (Form: ${change.value.form_id})`,
-                    externalId: change.value.leadgen_id,
-                  }
-                : undefined,
+      const isInstagram = igAccountId && entry.id === igAccountId
+      const sourceId = isInstagram ? "instagram-dm" : "facebook-dm"
+      const channel = isInstagram ? "instagram_dm" : "facebook_dm"
+
+      try {
+        await processIntake({
+          config,
+          payload: {
+            sourceId,
+            ...(isInstagram
+              ? { metaIgsid: event.sender.id }
+              : { metaPsid: event.sender.id }),
+            initialMessage: {
+              channel: channel as "facebook_dm" | "instagram_dm",
+              content: event.message.text,
+              externalId: event.message.mid,
             },
-          })
-        } catch (e) {
-          console.error("Meta lead ad intake failed", {
+          },
+        })
+      } catch (e) {
+        console.error("Meta DM intake failed", { sourceId, senderId: event.sender.id, error: e })
+      }
+    }
+  }
+
+  // Handle Lead Ad events
+  if (entry.changes) {
+    for (const change of entry.changes) {
+      if (change.field !== "leadgen") continue
+
+      try {
+        const token = await getValidMetaToken(connection)
+        const leadData = await fetchLeadAdData({
+          leadId: change.value.leadgen_id,
+          accessToken: token,
+        })
+
+        if (!leadData.success || !leadData.fields) {
+          console.error("Failed to fetch lead ad data", {
             leadgenId: change.value.leadgen_id,
-            error: e,
+            error: leadData.error,
           })
+          continue
         }
+
+        const parsed = parseLeadAdFields(leadData.fields)
+
+        if (!parsed.email && !parsed.phone) {
+          console.error("Lead ad has no contact info", {
+            leadgenId: change.value.leadgen_id,
+          })
+          continue
+        }
+
+        await processIntake({
+          config,
+          payload: {
+            sourceId: "facebook-ad",
+            ...parsed,
+            initialMessage: parsed.email || parsed.phone
+              ? {
+                  channel: "email",
+                  content: `Lead Ad form submission (Form: ${change.value.form_id})`,
+                  externalId: change.value.leadgen_id,
+                }
+              : undefined,
+          },
+        })
+      } catch (e) {
+        console.error("Meta lead ad intake failed", {
+          leadgenId: change.value.leadgen_id,
+          error: e,
+        })
       }
     }
   }

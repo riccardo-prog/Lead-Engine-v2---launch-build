@@ -1,10 +1,11 @@
-import { getConfig } from "@/lib/config"
+import { getConfig, getClientIdFromSession } from "@/lib/config"
 import { createServerSupabaseClient } from "@/lib/supabase-server"
 import { InboxView } from "@/components/inbox/inbox-view"
 import type { Lead, AIAction, Message } from "@/types/database"
 
 export default async function InboxPage() {
-  const config = await getConfig()
+  const clientId = await getClientIdFromSession()
+  const config = await getConfig(clientId)
   const supabase = await createServerSupabaseClient()
 
   const { data: actions } = await supabase

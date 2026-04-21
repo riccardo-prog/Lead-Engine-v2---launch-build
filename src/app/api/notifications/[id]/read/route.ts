@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
-import { getConfig } from "@/lib/config"
+import { getClientIdFromSession } from "@/lib/config"
 import { requireSession } from "@/lib/api-auth"
 
 export async function POST(
@@ -13,13 +13,13 @@ export async function POST(
   try {
     const { id } = await params
     const supabase = createServiceClient()
-    const config = await getConfig()
+    const clientId = await getClientIdFromSession()
 
     const { error } = await supabase
       .from("notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("client_id", config.clientId)
+      .eq("client_id", clientId)
       .is("read_at", null)
 
     if (error) {

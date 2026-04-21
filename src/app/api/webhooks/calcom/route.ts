@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server"
 import { getConfig } from "@/lib/config"
 import { notify, leadName } from "@/engine/notifications/notify"
 import type { Lead } from "@/types/database"
+import type { ClientConfig } from "@/config/schema"
 
 export async function POST(request: NextRequest) {
   const secret = process.env.CAL_WEBHOOK_SECRET
@@ -59,7 +60,7 @@ type CalWebhookPayload = {
   }
 }
 
-function formatTime(iso: string, config: Awaited<ReturnType<typeof getConfig>>): string {
+function formatTime(iso: string, config: ClientConfig): string {
   const tz = config.messagingRules[0]?.timezone || "America/Toronto"
   return new Date(iso).toLocaleString("en-US", {
     timeZone: tz,
@@ -69,8 +70,28 @@ function formatTime(iso: string, config: Awaited<ReturnType<typeof getConfig>>):
 }
 
 async function processCalEvent(body: CalWebhookPayload) {
-  const config = await getConfig()
   const supabase = createServiceClient()
+
+  // Find the lead by attendee email to determine which client this booking belongs to
+  const attendee = body.payload.attendees?.[0]
+  if (!attendee?.email) {
+    console.error("Cal.com webhook has no attendee email")
+    return
+  }
+
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("client_id")
+    .ilike("email", attendee.email)
+    .limit(1)
+    .maybeSingle()
+
+  if (!leadRow) {
+    console.log("Cal.com booking for unknown lead", { email: attendee.email })
+    return
+  }
+
+  const config = await getConfig(leadRow.client_id)
 
   if (body.triggerEvent === "BOOKING_CREATED") {
     await handleBookingCreated(body, config, supabase)
@@ -80,7 +101,7 @@ async function processCalEvent(body: CalWebhookPayload) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleBookingCreated(body: CalWebhookPayload, config: Awaited<ReturnType<typeof getConfig>>, supabase: any) {
+async function handleBookingCreated(body: CalWebhookPayload, config: ClientConfig, supabase: any) {
   const attendee = body.payload.attendees?.[0]
   if (!attendee?.email) {
     console.error("Cal.com booking webhook has no attendee email")
@@ -150,7 +171,7 @@ async function handleBookingCreated(body: CalWebhookPayload, config: Awaited<Ret
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleBookingCancelled(body: CalWebhookPayload, config: Awaited<ReturnType<typeof getConfig>>, supabase: any) {
+async function handleBookingCancelled(body: CalWebhookPayload, config: ClientConfig, supabase: any) {
   const attendee = body.payload.attendees?.[0]
   if (!attendee?.email) return
 

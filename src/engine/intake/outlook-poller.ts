@@ -27,13 +27,13 @@ type GraphMessage = {
   isRead: boolean
 }
 
-export async function pollOutlookForLeads(): Promise<{
+export async function pollOutlookForLeads(clientId: string): Promise<{
   scanned: number
   processed: number
   skipped: number
   errors: string[]
 }> {
-  const config = await getConfig()
+  const config = await getConfig(clientId)
   const connection = await getMicrosoftConnection(config.clientId)
 
   if (!connection) {

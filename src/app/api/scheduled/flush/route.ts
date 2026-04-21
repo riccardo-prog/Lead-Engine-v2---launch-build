@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
-import { sendEmailViaOutlook } from "@/engine/messaging/microsoft-graph"
-import { getConfig } from "@/lib/config"
+import { sendEmailViaOutlook, getMicrosoftConnection } from "@/engine/messaging/microsoft-graph"
+import { sendEmailViaGmail, getGoogleConnection } from "@/engine/messaging/gmail"
+import { getAllClientIds, getConfig } from "@/lib/config"
 import { requireBearerToken } from "@/lib/api-auth"
 import { notify, leadName } from "@/engine/notifications/notify"
 import type { Message, Lead } from "@/types/database"
@@ -12,8 +13,19 @@ async function handler(request: NextRequest) {
   const auth = requireBearerToken(request)
   if (!auth.ok) return auth.response
 
+  const results: Record<string, { processed: number; sent: number; failed: number; giveUp: number }> = {}
+
+  for (const clientId of getAllClientIds()) {
+    const result = await flushForClient(clientId)
+    results[clientId] = result
+  }
+
+  return NextResponse.json(results)
+}
+
+async function flushForClient(clientId: string) {
   const supabase = createServiceClient()
-  const config = await getConfig()
+  const config = await getConfig(clientId)
 
   const now = new Date().toISOString()
 
@@ -28,8 +40,8 @@ async function handler(request: NextRequest) {
     .lt("send_attempts", MAX_SEND_ATTEMPTS)
 
   if (error) {
-    console.error("Flush query failed", error)
-    return NextResponse.json({ error: "query_failed" }, { status: 500 })
+    console.error("Flush query failed", { clientId, error })
+    return { processed: 0, sent: 0, failed: 0, giveUp: 0 }
   }
 
   let sent = 0
@@ -64,7 +76,11 @@ async function handler(request: NextRequest) {
           continue
         }
 
-        const result = await sendEmailViaOutlook({
+        // Try Outlook first, then Gmail
+        const msConn = await getMicrosoftConnection(config.clientId)
+        const sendFn = msConn ? sendEmailViaOutlook : sendEmailViaGmail
+
+        const result = await sendFn({
           clientId: config.clientId,
           toEmail: lead.email,
           toName: leadName(lead),
@@ -136,7 +152,7 @@ async function handler(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed: (due || []).length, sent, failed, giveUp })
+  return { processed: (due || []).length, sent, failed, giveUp }
 }
 
 async function markSendFailed(

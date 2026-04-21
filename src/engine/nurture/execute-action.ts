@@ -14,9 +14,22 @@ export type ExecuteResult = {
   scheduledFor?: string
 }
 
-export async function executeAction(actionId: string): Promise<ExecuteResult> {
+export async function executeAction(actionId: string, clientId?: string): Promise<ExecuteResult> {
   const supabase = createServiceClient()
-  const config = await getConfig()
+
+  // If clientId not provided, look it up from the action row
+  let resolvedClientId = clientId
+  if (!resolvedClientId) {
+    const { data: row } = await supabase
+      .from("ai_actions")
+      .select("client_id")
+      .eq("id", actionId)
+      .single()
+    if (!row) return { success: false, reason: "Action not found" }
+    resolvedClientId = row.client_id as string
+  }
+
+  const config = await getConfig(resolvedClientId)
 
   const { data: actionRow } = await supabase
     .from("ai_actions")

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { processIntake, type IntakePayload } from "@/engine/intake/process-lead"
-import { getConfig } from "@/lib/config"
+import { getConfig, getClientIdFromSession } from "@/lib/config"
 import { requireSessionOrBearer } from "@/lib/api-auth"
 import { rateLimit } from "@/lib/rate-limit"
 import { createHash } from "crypto"
@@ -62,7 +62,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const config = await getConfig()
+    // For session auth, derive clientId from JWT. For bearer auth, require it in the body.
+    let clientId: string
+    if (auth.method === "session") {
+      clientId = await getClientIdFromSession()
+    } else {
+      if (!body.clientId) {
+        return NextResponse.json(
+          { error: "clientId is required for bearer auth" },
+          { status: 400 }
+        )
+      }
+      clientId = body.clientId
+    }
+
+    const config = await getConfig(clientId)
     const result = await processIntake({ payload: body, config })
 
     if (result.error && !result.leadId) {

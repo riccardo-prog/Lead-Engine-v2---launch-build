@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
 import { requireSession } from "@/lib/api-auth"
-import { getConfig } from "@/lib/config"
+import { getClientIdFromSession } from "@/lib/config"
 import { randomBytes } from "crypto"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -37,12 +37,12 @@ export async function GET() {
   const ttl = parseInt(process.env.OAUTH_STATE_TTL_SECONDS || "600", 10)
   const state = randomBytes(32).toString("hex")
   const supabase = createServiceClient()
-  const config = await getConfig()
+  const clientId = await getClientIdFromSession()
   const expiresAt = new Date(Date.now() + ttl * 1000).toISOString()
 
   await supabase.from("oauth_states").insert({
     state,
-    client_id: config.clientId,
+    client_id: clientId,
     provider: "meta",
     user_id: auth.userId,
     expires_at: expiresAt,

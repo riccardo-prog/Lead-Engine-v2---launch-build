@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
 import { decideNextAction } from "@/engine/nurture/decide-action"
-import { getConfig } from "@/lib/config"
+import { getConfig, getClientIdFromSession } from "@/lib/config"
 import { requireSession } from "@/lib/api-auth"
 import { notify, leadName } from "@/engine/notifications/notify"
 import type { Lead, Message, AIAction } from "@/types/database"
@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServiceClient()
-    const config = await getConfig()
+    const clientId = await getClientIdFromSession()
+    const config = await getConfig(clientId)
 
     const { data: actionRow } = await supabase
       .from("ai_actions")

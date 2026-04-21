@@ -1,4 +1,4 @@
-import { getConfig } from "@/lib/config"
+import { getConfig, getClientIdFromSession } from "@/lib/config"
 import { createServerSupabaseClient } from "@/lib/supabase-server"
 import { SettingsView } from "@/components/settings/settings-view"
 
@@ -7,7 +7,8 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ connected?: string; error?: string }>
 }) {
-  const config = await getConfig()
+  const clientId = await getClientIdFromSession()
+  const config = await getConfig(clientId)
   const params = await searchParams
   const supabase = await createServerSupabaseClient()
 

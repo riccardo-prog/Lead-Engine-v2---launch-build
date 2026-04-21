@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
-import { getConfig } from "@/lib/config"
+import { getAllClientIds, getConfig } from "@/lib/config"
 import { requireBearerToken } from "@/lib/api-auth"
 import { decideNextAction } from "@/engine/nurture/decide-action"
 import { notify, leadName } from "@/engine/notifications/notify"
@@ -15,8 +15,18 @@ async function handler(request: NextRequest) {
   const auth = requireBearerToken(request)
   if (!auth.ok) return auth.response
 
+  const results: Record<string, { processed: number; skipped: number }> = {}
+
+  for (const clientId of getAllClientIds()) {
+    results[clientId] = await followUpForClient(clientId)
+  }
+
+  return NextResponse.json(results)
+}
+
+async function followUpForClient(clientId: string) {
   const supabase = createServiceClient()
-  const config = await getConfig()
+  const config = await getConfig(clientId)
 
   const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
@@ -33,12 +43,12 @@ async function handler(request: NextRequest) {
     .limit(20)
 
   if (error) {
-    console.error("Failed to fetch stale leads", error)
-    return NextResponse.json({ error: "db_error" }, { status: 500 })
+    console.error("Failed to fetch stale leads", { clientId, error })
+    return { processed: 0, skipped: 0 }
   }
 
   if (!staleLeads || staleLeads.length === 0) {
-    return NextResponse.json({ processed: 0, skipped: 0 })
+    return { processed: 0, skipped: 0 }
   }
 
   let processed = 0
@@ -141,7 +151,7 @@ async function handler(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed, skipped })
+  return { processed, skipped }
 }
 
 export { handler as POST }
