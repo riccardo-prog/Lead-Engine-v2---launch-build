@@ -20,6 +20,8 @@ export type IntakePayload = {
     content: string
     subject?: string
     externalId?: string
+    threadId?: string
+    inReplyTo?: string
   }
   customFields?: Record<string, unknown>
   tags?: string[]
@@ -141,6 +143,8 @@ export async function processIntake({
       content: payload.initialMessage.content,
       subject: payload.initialMessage.subject || null,
       external_id: payload.initialMessage.externalId || null,
+      thread_id: payload.initialMessage.threadId || null,
+      in_reply_to: payload.initialMessage.inReplyTo || null,
     }
 
     const { error: msgError } = await supabase.from("messages").insert(insertPayload)

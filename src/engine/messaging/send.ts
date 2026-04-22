@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase-server"
 import { checkCompliance } from "@/engine/compliance/compliance"
+import { isSuppressed } from "@/engine/outbound/suppression"
 import { sendEmailViaOutlook, getMicrosoftConnection } from "@/engine/messaging/microsoft-graph"
 import { sendEmailViaGmail, getGoogleConnection } from "@/engine/messaging/gmail"
 import { sendFacebookDM, sendInstagramDM, getMessagingWindowStatus } from "@/engine/messaging/meta-graph"
@@ -32,6 +33,14 @@ export async function sendMessage({
   aiGenerated: boolean
   aiReasoning?: string
 }): Promise<SendResult> {
+  // Cross-system suppression check
+  if (lead.email) {
+    const suppressed = await isSuppressed(config.clientId, lead.email)
+    if (suppressed) {
+      return { success: false, reason: "Email is on the suppression list" }
+    }
+  }
+
   const compliance = await checkCompliance({ lead, channel, config })
 
   if (!compliance.allowed) {
@@ -67,6 +76,8 @@ async function dispatchMessage({
   aiReasoning?: string
 }): Promise<SendResult> {
   const supabase = createServiceClient()
+  let threadId: string | undefined
+  let inReplyTo: string | undefined
 
   if (channel === "email") {
     if (!lead.email) {
@@ -86,6 +97,23 @@ async function dispatchMessage({
 
     const toName = [lead.first_name, lead.last_name].filter(Boolean).join(" ")
 
+    // Look up thread context for Gmail continuity
+    if (!msConnection) {
+      const { data: lastThreaded } = await supabase
+        .from("messages")
+        .select("thread_id, in_reply_to, external_id")
+        .eq("lead_id", lead.id)
+        .not("thread_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (lastThreaded) {
+        threadId = lastThreaded.thread_id || undefined
+        inReplyTo = lastThreaded.external_id || lastThreaded.in_reply_to || undefined
+      }
+    }
+
     const result = msConnection
       ? await sendEmailViaOutlook({
           clientId: config.clientId,
@@ -100,6 +128,8 @@ async function dispatchMessage({
           toName,
           subject: subject || "Following up",
           body: content,
+          threadId,
+          inReplyTo,
         })
 
     if (!result.success) {
@@ -148,6 +178,8 @@ async function dispatchMessage({
       direction: "outbound",
       content,
       subject: subject || null,
+      thread_id: threadId || null,
+      in_reply_to: inReplyTo || null,
       ai_generated: aiGenerated,
       ai_reasoning: aiReasoning || null,
       approved: true,

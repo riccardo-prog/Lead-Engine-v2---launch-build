@@ -59,6 +59,15 @@ export const operateaiConfig: ClientConfig = {
     reminderHours: [24, 1],
   },
 
+  outbound: {
+    socialProof: [
+      "One client reduced their lead response time from 4 hours to under 2 minutes",
+      "Businesses using automated follow-up see 3-5x more booked calls from the same lead volume",
+    ],
+    icpDescription: "AI-powered lead management and automated follow-up for service businesses, agencies, and consultants",
+    requireApproval: true,
+  },
+
   conversationScripts: [
     {
       leadType: "cold-reply",

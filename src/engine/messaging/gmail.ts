@@ -102,12 +102,14 @@ function buildMimeMessage({
   toName,
   subject,
   body,
+  inReplyTo,
 }: {
   from: string
   to: string
   toName?: string
   subject: string
   body: string
+  inReplyTo?: string
 }): string {
   const toHeader = toName ? `"${toName}" <${to}>` : to
   const lines = [
@@ -115,11 +117,13 @@ function buildMimeMessage({
     `To: ${toHeader}`,
     `Subject: ${subject}`,
     `Content-Type: text/plain; charset="UTF-8"`,
-    "",
-    body,
   ]
+  if (inReplyTo) {
+    lines.push(`In-Reply-To: ${inReplyTo}`)
+    lines.push(`References: ${inReplyTo}`)
+  }
+  lines.push("", body)
   const raw = lines.join("\r\n")
-  // base64url encode
   return Buffer.from(raw)
     .toString("base64")
     .replace(/\+/g, "-")
@@ -133,13 +137,17 @@ export async function sendEmailViaGmail({
   toName,
   subject,
   body,
+  threadId,
+  inReplyTo,
 }: {
   clientId: string
   toEmail: string
   toName?: string
   subject: string
   body: string
-}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  threadId?: string
+  inReplyTo?: string
+}): Promise<{ success: boolean; messageId?: string; threadId?: string; error?: string }> {
   const connection = await getGoogleConnection(clientId)
   if (!connection) {
     return { success: false, error: "No Google connection found for this client" }
@@ -149,7 +157,7 @@ export async function sendEmailViaGmail({
     const token = await getValidGoogleToken(connection)
     const from = connection.account_email || ""
 
-    const raw = buildMimeMessage({ from, to: toEmail, toName, subject, body })
+    const raw = buildMimeMessage({ from, to: toEmail, toName, subject, body, inReplyTo })
 
     const res = await fetch(
       "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
@@ -159,7 +167,7 @@ export async function sendEmailViaGmail({
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ raw }),
+        body: JSON.stringify({ raw, ...(threadId ? { threadId } : {}) }),
       }
     )
 
@@ -172,7 +180,7 @@ export async function sendEmailViaGmail({
     }
 
     const data = await res.json()
-    return { success: true, messageId: data.id }
+    return { success: true, messageId: data.id, threadId: data.threadId }
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error"
     return { success: false, error: message }

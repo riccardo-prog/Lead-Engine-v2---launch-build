@@ -34,6 +34,18 @@ export async function decideNextAction({
   config: ClientConfig
   operatorFeedback?: OperatorFeedback
 }): Promise<NurtureDecision> {
+  // If lead is paused (e.g. soft-no from cold outbound), don't act until pause expires
+  if (lead.paused_until) {
+    const pauseExpiry = new Date(lead.paused_until)
+    if (pauseExpiry.getTime() > Date.now()) {
+      return {
+        action: "wait",
+        reasoning: `Lead is paused until ${lead.paused_until}. Will re-engage after pause expires.`,
+        waitUntil: lead.paused_until,
+      }
+    }
+  }
+
   const system = buildSystemPrompt(config)
   const prompt = await buildDecisionPrompt(lead, messages, config, operatorFeedback)
 

@@ -1,6 +1,8 @@
 import { getGoogleConnection, getValidGoogleToken } from "@/engine/messaging/gmail"
 import { processIntake } from "@/engine/intake/process-lead"
 import { notify, leadName } from "@/engine/notifications/notify"
+import { handleOutboundReply } from "@/engine/outbound/reply-handler"
+import { handoffToLeadEngine } from "@/engine/outbound/handoff"
 import { createServiceClient } from "@/lib/supabase-server"
 import { getConfig } from "@/lib/config"
 import type { Lead } from "@/types/database"
@@ -101,6 +103,51 @@ export async function pollGmailForLeads(clientId: string): Promise<{
       skipped++
       await markRead(token, ref.id)
       continue
+    }
+
+    // Check if this is from an outbound prospect (cold outbound reply)
+    const { data: outboundProspect } = await supabase
+      .from("outbound_prospects")
+      .select("id, campaign_id, status")
+      .eq("client_id", config.clientId)
+      .eq("email", senderEmail)
+      .in("status", ["pending", "sending"])
+      .maybeSingle()
+
+    if (outboundProspect) {
+      try {
+        const replyResult = await handleOutboundReply({
+          clientId: config.clientId,
+          prospectId: outboundProspect.id,
+          campaignId: outboundProspect.campaign_id,
+          replyContent: body,
+          replySubject: subject,
+          gmailMessageId: ref.id,
+          gmailThreadId: message.threadId,
+        })
+
+        // Hand off to Lead Engine if not opted out
+        if (replyResult.sentiment !== "reply_to_stop") {
+          await handoffToLeadEngine({
+            clientId: config.clientId,
+            prospectId: outboundProspect.id,
+            campaignId: outboundProspect.campaign_id,
+            replyContent: body,
+            replySubject: subject,
+            gmailThreadId: message.threadId,
+            gmailMessageId: ref.id,
+            sentiment: replyResult.sentiment as "reply_to_continue" | "reply_to_pause",
+          })
+        }
+
+        processed++
+        await markRead(token, ref.id)
+        continue
+      } catch (e) {
+        errors.push("outbound_reply_processing_failed")
+        console.error("Outbound reply processing failed", { id: ref.id, error: e })
+        continue
+      }
     }
 
     // Check if from a known lead
