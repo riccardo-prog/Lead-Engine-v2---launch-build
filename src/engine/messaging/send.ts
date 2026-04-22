@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase-server"
 import { checkCompliance } from "@/engine/compliance/compliance"
+import { isSuppressed } from "@/engine/outbound/suppression"
 import { sendEmailViaOutlook, getMicrosoftConnection } from "@/engine/messaging/microsoft-graph"
 import { sendEmailViaGmail, getGoogleConnection } from "@/engine/messaging/gmail"
 import { sendFacebookDM, sendInstagramDM, getMessagingWindowStatus } from "@/engine/messaging/meta-graph"
@@ -32,6 +33,14 @@ export async function sendMessage({
   aiGenerated: boolean
   aiReasoning?: string
 }): Promise<SendResult> {
+  // Cross-system suppression check
+  if (lead.email) {
+    const suppressed = await isSuppressed(config.clientId, lead.email)
+    if (suppressed) {
+      return { success: false, reason: "Email is on the suppression list" }
+    }
+  }
+
   const compliance = await checkCompliance({ lead, channel, config })
 
   if (!compliance.allowed) {
