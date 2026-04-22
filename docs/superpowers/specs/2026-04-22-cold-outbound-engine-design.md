@@ -57,6 +57,7 @@ CSV Import → ICP Scoring (Haiku) → Campaign Enrollment
 | sequence_id | UUID FK | References `outbound_sequences.id` |
 | sending_account_id | UUID FK | References `outbound_sending_accounts.id` |
 | icp_criteria | JSONB | Stored ICP prompt context for this campaign |
+| icp_threshold | INTEGER DEFAULT 40 | Minimum ICP score to enroll prospect |
 | social_proof | TEXT[] | Array of social proof statements for step 2 emails |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
@@ -196,6 +197,8 @@ Effective daily limit = `min(daily_limit, warmup_limit_for_week)`.
 | UNIQUE | (client_id, email) | |
 
 **Cross-system suppression:** Both the outbound send pipeline and the Lead Engine nurture send pipeline check this table before sending any email. A lead who opts out via Lead Engine is also suppressed from cold outbound, and vice versa.
+
+**Lead Engine integration:** The existing send path in `src/engine/messaging/send.ts` currently only checks `lead.opted_out`. This must be extended to also query `suppression_list` by `(client_id, email)` before sending. Without this, a prospect who opts out of outbound could get handed off to Ari and emailed again. The suppression check is a pre-send gate, not a post-send audit.
 
 **Auto-add triggers:**
 - `reply_to_stop` sentiment → reason `opted_out`, source `outbound_reply`
@@ -372,12 +375,18 @@ Respond with JSON:
     "role_fit": { "score": <0-100>, "reason": "<one sentence>" },
     "industry_fit": { "score": <0-100>, "reason": "<one sentence>" }
   },
-  "summary": "<one sentence overall assessment>",
-  "enroll": <true if score >= 40, false otherwise>
+  "summary": "<one sentence overall assessment>"
 }
 ```
 
-Prospects with `enroll: false` get status `suppressed` (not worth emailing, not a suppression-list entry). The threshold of 40 is configurable per campaign via `icp_criteria`.
+**Enrollment threshold is server-side, not in the prompt.** After Claude returns the score, the server checks `score >= campaign.icp_threshold`. Prospects below the threshold get status `suppressed` (not worth emailing, not a suppression-list entry).
+
+**Add to `outbound_campaigns` table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| icp_threshold | INTEGER DEFAULT 40 | Minimum ICP score to enroll. Configurable per campaign. |
+
+This keeps the threshold tunable without re-prompting or re-scoring — just lower the threshold and re-run enrollment on existing scored prospects.
 
 ---
 
@@ -434,13 +443,53 @@ Runs every 15 minutes via Vercel Cron (`/api/cron/outbound-send`).
 
 When a prospect is enrolled in a campaign:
 
-1. Calculate `send_after` for each step:
-   - Step 0: enrollment time (next available send window)
-   - Step N: enrollment time + `dayOffset` days + random jitter (0-120 minutes)
-2. Create all `outbound_emails` rows with status `pending` and calculated `send_after`
-3. Jitter prevents all emails from going out at exactly the same minute
+1. Create `outbound_emails` row for step 0 only, with `send_after` = enrollment time (next available send window) + random jitter (0-60 minutes)
+2. Steps 1+ are NOT scheduled at enrollment — they are scheduled when step 0 actually sends
 
-### 7.3 Sending Hours
+**When step 0 sends successfully:**
+1. Record `sent_at` on the step 0 email row
+2. Create `outbound_emails` rows for steps 1, 2, 3 with:
+   - `send_after` = step 0 `sent_at` + step's `dayOffset` days + random jitter (0-120 minutes)
+3. This ensures day offsets are relative to when the prospect actually received step 0, not when they were imported
+
+**Why:** If step 0 is enrolled at 4:55pm, it won't send until 9am next day. Computing step 1 from enrollment time would make the gap between step 0 and step 1 only ~2 days instead of the intended 3. Computing from `sent_at` keeps the spacing correct.
+
+**Jitter bounds:** Jitter is clamped to the 9-17 ET window. If `send_after + jitter` falls outside the window, the cron simply picks it up at the next in-window run — no rescheduling needed.
+
+### 7.3 Human Approval Mode
+
+Outbound supports the same `humanApprovalRequired` pattern as Lead Engine nurture.
+
+**Config addition:**
+```typescript
+// Add to outbound config in schema.ts
+outbound?: {
+  socialProof?: string[]
+  icpDescription?: string
+  requireApproval?: boolean  // NEW: default true
+}
+```
+
+**When `requireApproval` is true (default):**
+
+1. The send cron generates the email (Phase 2 AI pipeline) and stores it on the `outbound_emails` row
+2. Instead of sending immediately, it creates an `ai_actions` row with:
+   - `action_type: "send_outbound"`
+   - `proposed_content`: the generated email body
+   - `status: "pending"`
+   - Reference to the `outbound_emails.id` in metadata
+3. The email appears in the operator's inbox/approval queue alongside nurture messages
+4. Operator can: **Approve** (sends as-is), **Edit** (modify then send), **Regenerate** (re-run Sonnet with same inputs), **Reject** (skip this email, mark prospect as paused)
+5. On approval, the email is sent via Gmail API and the `outbound_emails` row is updated
+
+**When `requireApproval` is false:**
+- Send cron generates and sends in one step, same as current spec flow
+
+**Recommendation:** Ship with `requireApproval: true` for OperateAI. After 50-100 approved sends with consistent quality, flip to `false`. This catches hallucinations and voice mismatches that grounding rules alone won't prevent on a brand-new outbound domain.
+
+**Add `"send_outbound"` to the `AIAction.action_type` union** in `src/types/database.ts`.
+
+### 7.4 Sending Hours
 
 All sends constrained to 9:00-17:00 ET (America/Toronto). If a `send_after` falls outside this window, the send cron simply skips it until the next cron run within the window. No rescheduling needed — the cron runs every 15 minutes and will pick it up.
 
@@ -537,14 +586,45 @@ Respond with JSON:
 **`reply_to_pause`:**
 1. Mark prospect status `paused`
 2. Stop remaining sequence emails
-3. Hand off to Lead Engine with `paused_until` set to 30 days from now on the created lead
-4. Ari (nurture AI) sees the `paused_until` and handles re-engagement when the time comes
+3. Hand off to Lead Engine with `paused_until` set to 30 days from now on the created lead (see §9.4)
 
 **`reply_to_stop`:**
 1. Mark prospect status `opted_out`
 2. Stop remaining sequence emails
 3. Add email to `suppression_list` (reason: `opted_out`, source: `outbound_reply`)
 4. Do NOT create a lead — they don't want to hear from us
+
+### 9.4 Paused Lead Re-Engagement
+
+`paused_until` is a real column on the `leads` table (not hidden in `custom_fields`). This requires a schema change:
+
+**Add to `leads` table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| paused_until | TIMESTAMPTZ | Null = not paused. Set by outbound handoff or manually. |
+
+**Add to `Lead` type in `src/types/database.ts`:**
+```typescript
+paused_until: string | null
+```
+
+**Waking mechanism:** A daily cron (`/api/cron/wake-paused-leads`) runs once per day at 9:00 ET. It queries:
+
+```sql
+SELECT * FROM leads
+WHERE paused_until IS NOT NULL
+  AND paused_until <= NOW()
+  AND disqualified = FALSE
+  AND opted_out = FALSE
+```
+
+For each matched lead, it:
+1. Sets `paused_until = NULL`
+2. Triggers `decideNextAction` for the lead — Ari sees the conversation history (cold emails + their "not right now" reply) and decides how to re-engage
+
+**`decide-action.ts` integration:** When `paused_until` is not null and in the future, `decideNextAction` returns `{ action: "wait", waitUntil: lead.paused_until }`. The lead doesn't appear in the approval queue until the pause expires.
+
+**File:** `src/app/api/cron/wake-paused-leads/route.ts`
 
 ---
 
@@ -576,12 +656,18 @@ await processIntake({
       outbound_campaign_id: campaign.id,
       outbound_campaign_name: campaign.name,
       outbound_icp_score: prospect.icp_score,
-      paused_until: sentiment === "reply_to_pause"
-        ? new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
-        : undefined,
     },
   },
 })
+```
+
+**If `reply_to_pause`:** After lead creation, set `paused_until` directly on the lead row:
+```typescript
+if (sentiment === "reply_to_pause") {
+  await supabase.from("leads")
+    .update({ paused_until: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString() })
+    .eq("id", newLeadId)
+}
 ```
 
 ### 10.2 Import Conversation History
@@ -635,8 +721,9 @@ This allows the campaign detail view to link directly to the lead in the pipelin
 ```typescript
 // Add to ClientConfig type in src/config/schema.ts
 outbound?: {
-  socialProof?: string[]  // Social proof statements for sequence step 2
-  icpDescription?: string // What the business sells, for ICP scoring context
+  socialProof?: string[]    // Social proof statements for sequence step 2
+  icpDescription?: string   // What the business sells, for ICP scoring context
+  requireApproval?: boolean // Human approval before sending (default true)
 }
 ```
 
@@ -650,6 +737,7 @@ outbound: {
     "Businesses using automated follow-up see 3-5x more booked calls from the same lead volume",
   ],
   icpDescription: "AI-powered lead management and automated follow-up for service businesses, agencies, and consultants",
+  requireApproval: true, // flip to false after first 50-100 sends
 },
 ```
 
@@ -663,7 +751,7 @@ outbound: {
 2. **Parse & validate:** Required columns: `email`. Optional: `first_name`, `last_name`, `company`, `title`, `linkedin_url`, `website_url`, `company_description`. Extra columns → `custom_fields` JSONB.
 3. **Suppression check:** For each email, check `suppression_list`. Suppressed emails get status `suppressed` and are excluded from the campaign with a visible count.
 4. **Dedup:** Check for duplicate emails within the campaign (same `campaign_id`). Also check across active campaigns for the same client — flag duplicates but allow override.
-5. **ICP scoring:** Run Haiku ICP scoring for each prospect. Store `icp_score`, `icp_factors` on the prospect row. Prospects with `enroll: false` (score < 40) get status `suppressed` with a note in `custom_fields`.
+5. **ICP scoring:** Run Haiku ICP scoring for each prospect. Store `icp_score`, `icp_factors` on the prospect row. Server-side: if `icp_score < campaign.icp_threshold`, set status `suppressed`.
 6. **Research briefs:** Run Haiku research brief for each enrolled prospect. Store `research_brief` and `research_confidence` on the prospect row.
 7. **Schedule emails:** For enrolled prospects, create `outbound_emails` rows for all sequence steps with calculated `send_after` timestamps.
 
@@ -755,8 +843,10 @@ src/engine/outbound/
 └── types.ts              # Outbound-specific TypeScript types
 
 src/app/api/cron/
-└── outbound-send/
-    └── route.ts           # Vercel Cron endpoint, calls send-cron.ts
+├── outbound-send/
+│   └── route.ts           # Vercel Cron endpoint, calls send-cron.ts (every 15 min)
+└── wake-paused-leads/
+    └── route.ts           # Daily 9am ET cron, re-engages paused leads (§9.4)
 
 src/app/(dashboard)/pipeline/outbound/
 ├── page.tsx               # Campaign list
@@ -774,14 +864,15 @@ src/components/outbound/
 
 ### Modified Existing Files
 
-- `src/config/schema.ts` — Add `outbound?: { socialProof?: string[], icpDescription?: string }` to `ClientConfig`
+- `src/config/schema.ts` — Add `outbound?: { socialProof?: string[], icpDescription?: string, requireApproval?: boolean }` to `ClientConfig`
 - `src/config/operateai.config.ts` — Add `outbound` config block
 - `src/engine/messaging/gmail.ts` — Add `threadId` and `inReplyTo` params to `sendEmailViaGmail`, add headers to `buildMimeMessage`
 - `src/engine/intake/gmail-poller.ts` — Add outbound prospect check before lead lookup
 - `src/engine/intake/process-lead.ts` — Support `priorMessages` in payload for conversation history import
-- `src/engine/ai/claude.ts` — Add `askHaikuJSON` and `askSonnet` helpers that use explicit model IDs (`claude-haiku-4-5-20251001` and `claude-sonnet-4-5-20241022`) instead of the global `MODEL` env var. The outbound pipeline needs specific models regardless of the default.
-- `src/engine/nurture/decide-action.ts` — Handle `paused_until` in lead custom_fields (Ari respects the pause date)
-- `src/types/database.ts` — Add outbound types (Prospect, Campaign, etc.)
+- `src/engine/ai/claude.ts` — Add `askHaikuJSON` and `askSonnet` helpers that use explicit model IDs (`claude-haiku-4-5-20251001` for research/scoring/sentiment, `claude-sonnet-4-5-20241022` for personalization) instead of the global `MODEL` env var. The outbound pipeline needs specific models regardless of the default. Verify exact model ID strings against the Anthropic API at implementation time — use the latest available dated version for each model family.
+- `src/engine/messaging/send.ts` — Add pre-send `suppression_list` check alongside existing `lead.opted_out` check. Both outbound and nurture sends must be gated.
+- `src/engine/nurture/decide-action.ts` — Handle `paused_until` on lead: if set and in the future, return `{ action: "wait" }`
+- `src/types/database.ts` — Add outbound types (Prospect, Campaign, etc.), add `paused_until: string | null` to `Lead`, add `"send_outbound"` to `AIAction.action_type`
 - `src/components/sidebar.tsx` — Add outbound nav item under pipeline
 
 ---
@@ -856,4 +947,4 @@ After the first 100 sends:
 - Review Sonnet email quality, tune step prompts
 - Review sentiment classification accuracy
 - Adjust warmup ramp based on deliverability signals
-- Consider adding email preview/approval flow if quality is inconsistent
+- Evaluate whether to flip `requireApproval` to `false` based on email quality consistency
