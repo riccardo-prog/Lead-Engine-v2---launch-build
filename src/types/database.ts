@@ -35,6 +35,9 @@ export type Lead = {
   opted_out: boolean
   opted_out_at: string | null
 
+  // Pause (outbound handoff or manual)
+  paused_until: string | null
+
   // Meta DM routing
   meta_psid: string | null
   meta_igsid: string | null
@@ -106,7 +109,7 @@ export type AIAction = {
   lead_id: string
   created_at: string
 
-  action_type: "send_message" | "advance_stage" | "book_appointment" | "disqualify" | "flag_human"
+  action_type: "send_message" | "send_outbound" | "advance_stage" | "book_appointment" | "disqualify" | "flag_human"
   reasoning: string
   proposed_content: string | null
   new_stage_id: string | null
