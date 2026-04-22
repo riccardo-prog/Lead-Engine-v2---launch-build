@@ -20,6 +20,8 @@ export type IntakePayload = {
     content: string
     subject?: string
     externalId?: string
+    threadId?: string
+    inReplyTo?: string
   }
   customFields?: Record<string, unknown>
   tags?: string[]
