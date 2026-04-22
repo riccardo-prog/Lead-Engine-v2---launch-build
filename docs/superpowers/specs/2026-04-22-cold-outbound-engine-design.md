@@ -901,7 +901,7 @@ The operator increments `warmup_week` manually in the UI when ready. This is int
 - One email at a time (no parallel sends from same account)
 - 2-5 second delay between sends (random within range)
 - All sends within 9-17 ET window
-- Random jitter on `send_after` times (0-120 minutes) prevents clustered sending
+- Random jitter on `send_after` times (0-60 minutes for step 0, 0-120 minutes for steps 1+) prevents clustered sending
 
 ### 15.4 Content Best Practices (Enforced by Design)
 
