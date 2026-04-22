@@ -76,4 +76,9 @@ export type ClientConfig = {
   conversationScripts: ConversationScript[]
   humanApprovalRequired: boolean
   operatorEmail: string
+  outbound?: {
+    socialProof?: string[]
+    icpDescription?: string
+    requireApproval?: boolean
+  }
 }
