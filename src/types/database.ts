@@ -69,6 +69,8 @@ export type Message = {
   replied: boolean
 
   external_id: string | null
+  thread_id: string | null
+  in_reply_to: string | null
   scheduled_for: string | null
   scheduled_reason: string | null
   send_attempts: number

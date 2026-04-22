@@ -1,5 +1,7 @@
 import { createServiceClient } from "@/lib/supabase-server"
 import { sendEmailViaGmail } from "@/engine/messaging/gmail"
+import { getConfig } from "@/lib/config"
+import { notify } from "@/engine/notifications/notify"
 import { isSuppressed } from "./suppression"
 import { personalizeEmail } from "./personalize"
 import { getSequence } from "./campaigns"
@@ -110,8 +112,23 @@ export async function runOutboundSendCron(clientId: string): Promise<{
       const prospect = email.outbound_prospects
       const campaign = email.outbound_campaigns
 
+      // Atomic claim: only proceed if we successfully flip pending → sending
+      const { data: claimed } = await supabase
+        .from("outbound_emails")
+        .update({ status: "sending" })
+        .eq("id", email.id)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle()
+
+      if (!claimed) {
+        stats.skipped++
+        continue
+      }
+
       // Suppression check
       if (await isSuppressed(clientId, prospect.email)) {
+        await supabase.from("outbound_emails").update({ status: "cancelled" }).eq("id", email.id)
         await supabase.from("outbound_prospects").update({ status: "suppressed" }).eq("id", prospect.id)
         stats.skipped++
         continue
@@ -120,11 +137,13 @@ export async function runOutboundSendCron(clientId: string): Promise<{
       // Get sequence step
       const sequence = await getSequence(campaign.sequence_id)
       if (!sequence) {
+        await supabase.from("outbound_emails").update({ status: "pending" }).eq("id", email.id)
         stats.errors.push(`Sequence ${campaign.sequence_id} not found`)
         continue
       }
       const step = (sequence.steps as SequenceStep[]).find((s) => s.stepOrder === email.step_order)
       if (!step) {
+        await supabase.from("outbound_emails").update({ status: "pending" }).eq("id", email.id)
         stats.errors.push(`Step ${email.step_order} not found in sequence`)
         continue
       }
@@ -155,26 +174,70 @@ export async function runOutboundSendCron(clientId: string): Promise<{
       }
 
       try {
-        // Generate personalized email
-        const personalized = await personalizeEmail({
-          prospect,
-          step,
-          fromName: account.from_name,
-          businessName: campaign.name,
-          socialProof: campaign.social_proof || undefined,
-        })
+        const config = await getConfig(clientId)
+        const requireApproval = config.outbound?.requireApproval ?? false
 
-        if (!subject) subject = personalized.subject
+        // Idempotency: skip regeneration if content already exists
+        let finalSubject = subject
+        let finalBody = email.body
 
-        // Store generated content
-        await supabase
-          .from("outbound_emails")
-          .update({
-            subject,
-            body: personalized.body,
-            word_count: personalized.wordCount,
+        if (!email.body || email.body === "") {
+          const personalized = await personalizeEmail({
+            prospect,
+            step,
+            fromName: account.from_name,
+            businessName: campaign.name,
+            socialProof: campaign.social_proof || undefined,
           })
-          .eq("id", email.id)
+
+          if (!finalSubject) finalSubject = personalized.subject
+          finalBody = personalized.body
+
+          await supabase
+            .from("outbound_emails")
+            .update({
+              subject: finalSubject,
+              body: finalBody,
+              word_count: personalized.wordCount,
+            })
+            .eq("id", email.id)
+        } else {
+          if (!finalSubject) finalSubject = email.subject || ""
+        }
+
+        // Approval mode: queue for human review instead of sending
+        if (requireApproval) {
+          await supabase
+            .from("outbound_emails")
+            .update({ status: "awaiting_approval" })
+            .eq("id", email.id)
+
+          await supabase.from("ai_actions").insert({
+            client_id: clientId,
+            lead_id: prospect.lead_id || null,
+            action_type: "send_outbound",
+            reasoning: `Outbound email step ${email.step_order} to ${prospect.email} (${prospect.first_name || "prospect"}) — ${step.stance}`,
+            proposed_content: JSON.stringify({
+              emailId: email.id,
+              prospectId: prospect.id,
+              campaignId: campaign.id,
+              subject: finalSubject,
+              body: finalBody,
+              toEmail: prospect.email,
+            }),
+            status: "pending",
+          })
+
+          await notify({
+            clientId,
+            type: "action_pending",
+            title: `Approve outbound email to ${prospect.first_name || prospect.email}`,
+            body: `Step ${email.step_order}: ${finalSubject}`,
+          })
+
+          stats.skipped++
+          continue
+        }
 
         // Send via Gmail
         const toName = [prospect.first_name, prospect.last_name].filter(Boolean).join(" ")
@@ -182,8 +245,8 @@ export async function runOutboundSendCron(clientId: string): Promise<{
           clientId,
           toEmail: prospect.email,
           toName: toName || undefined,
-          subject,
-          body: personalized.body,
+          subject: finalSubject,
+          body: finalBody,
           threadId,
           inReplyTo,
         })
@@ -285,6 +348,7 @@ export async function runOutboundSendCron(clientId: string): Promise<{
           }
         }
       } catch (e) {
+        await supabase.from("outbound_emails").update({ status: "pending" }).eq("id", email.id)
         stats.errors.push(`Email ${email.id}: ${e instanceof Error ? e.message : "Unknown error"}`)
         stats.failed++
       }

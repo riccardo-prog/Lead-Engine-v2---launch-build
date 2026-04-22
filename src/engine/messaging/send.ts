@@ -76,6 +76,8 @@ async function dispatchMessage({
   aiReasoning?: string
 }): Promise<SendResult> {
   const supabase = createServiceClient()
+  let threadId: string | undefined
+  let inReplyTo: string | undefined
 
   if (channel === "email") {
     if (!lead.email) {
@@ -95,6 +97,23 @@ async function dispatchMessage({
 
     const toName = [lead.first_name, lead.last_name].filter(Boolean).join(" ")
 
+    // Look up thread context for Gmail continuity
+    if (!msConnection) {
+      const { data: lastThreaded } = await supabase
+        .from("messages")
+        .select("thread_id, in_reply_to, external_id")
+        .eq("lead_id", lead.id)
+        .not("thread_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (lastThreaded) {
+        threadId = lastThreaded.thread_id || undefined
+        inReplyTo = lastThreaded.external_id || lastThreaded.in_reply_to || undefined
+      }
+    }
+
     const result = msConnection
       ? await sendEmailViaOutlook({
           clientId: config.clientId,
@@ -109,6 +128,8 @@ async function dispatchMessage({
           toName,
           subject: subject || "Following up",
           body: content,
+          threadId,
+          inReplyTo,
         })
 
     if (!result.success) {
@@ -157,6 +178,8 @@ async function dispatchMessage({
       direction: "outbound",
       content,
       subject: subject || null,
+      thread_id: threadId || null,
+      in_reply_to: inReplyTo || null,
       ai_generated: aiGenerated,
       ai_reasoning: aiReasoning || null,
       approved: true,

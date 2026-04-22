@@ -3,6 +3,10 @@
 -- 1. Add paused_until to leads
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS paused_until TIMESTAMPTZ DEFAULT NULL;
 
+-- 1b. Add thread tracking to messages (for Gmail thread continuity)
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS thread_id TEXT DEFAULT NULL;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS in_reply_to TEXT DEFAULT NULL;
+
 -- 2. Suppression list (shared between outbound and nurture)
 CREATE TABLE IF NOT EXISTS suppression_list (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

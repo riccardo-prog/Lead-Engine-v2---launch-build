@@ -84,6 +84,8 @@ export async function handoffToLeadEngine({
         content: email.body,
         subject: email.subject,
         external_id: email.gmail_message_id,
+        thread_id: email.gmail_thread_id || null,
+        in_reply_to: email.gmail_message_id || null,
         sent: true,
         sent_at: email.sent_at,
         ai_generated: true,
