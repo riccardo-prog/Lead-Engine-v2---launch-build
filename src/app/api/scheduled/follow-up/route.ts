@@ -17,7 +17,7 @@ async function handler(request: NextRequest) {
 
   const results: Record<string, { processed: number; skipped: number }> = {}
 
-  for (const clientId of getAllClientIds()) {
+  for (const clientId of await getAllClientIds()) {
     results[clientId] = await followUpForClient(clientId)
   }
 

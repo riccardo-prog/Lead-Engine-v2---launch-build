@@ -12,7 +12,7 @@ async function handler(request: NextRequest) {
 
   const results: Record<string, { scanned: number; processed: number; skipped: number; errors: string[] }> = {}
 
-  for (const clientId of getAllClientIds()) {
+  for (const clientId of await getAllClientIds()) {
     try {
       // Poll whichever email provider the client has connected
       const msConn = await getMicrosoftConnection(clientId)

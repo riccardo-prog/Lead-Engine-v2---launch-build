@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   const results: Record<string, unknown> = {}
 
-  for (const clientId of getAllClientIds()) {
+  for (const clientId of await getAllClientIds()) {
     try {
       results[clientId] = await runOutboundSendCron(clientId)
     } catch (e) {

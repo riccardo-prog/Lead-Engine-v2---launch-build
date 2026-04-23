@@ -15,7 +15,7 @@ async function handler(request: NextRequest) {
 
   const results: Record<string, { processed: number; sent: number; failed: number; giveUp: number }> = {}
 
-  for (const clientId of getAllClientIds()) {
+  for (const clientId of await getAllClientIds()) {
     const result = await flushForClient(clientId)
     results[clientId] = result
   }
