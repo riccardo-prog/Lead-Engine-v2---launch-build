@@ -174,16 +174,73 @@ export function InboxView({
               <>
                 {/* Lead or prospect info */}
                 {isOutbound && outboundMeta ? (
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-lg font-semibold">{outboundMeta.toEmail}</div>
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/[0.08] text-cyan-600 dark:text-cyan-400">
-                        Outbound
-                      </span>
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-lg font-semibold">
+                          {outboundMeta.prospect?.firstName
+                            ? `${outboundMeta.prospect.firstName}${outboundMeta.prospect.lastName ? ` ${outboundMeta.prospect.lastName}` : ""}`
+                            : outboundMeta.toEmail}
+                        </div>
+                        <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/[0.08] text-cyan-600 dark:text-cyan-400">
+                          Outbound
+                        </span>
+                        {outboundMeta.stepInfo && (
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-500/[0.08] text-indigo-600 dark:text-indigo-400">
+                            Step {outboundMeta.stepInfo.stepOrder} · {outboundMeta.stepInfo.stance?.replace(/-/g, " ")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[13px] text-muted-foreground mt-1 flex items-center gap-2">
+                        <span>{outboundMeta.toEmail}</span>
+                        {outboundMeta.prospect?.company && (
+                          <>
+                            <span className="text-muted-foreground/50">·</span>
+                            <span>{outboundMeta.prospect.title ? `${outboundMeta.prospect.title} at ` : ""}{outboundMeta.prospect.company}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    {outboundMeta.subject && (
-                      <div className="text-[13px] text-muted-foreground mt-1">
-                        Subject: {outboundMeta.subject}
+
+                    {/* ICP Score + Key Insights */}
+                    {outboundMeta.prospect?.icpScore != null && (
+                      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 bg-white/[0.02] border border-white/[0.05] rounded-lg px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.05em]">ICP Score</div>
+                          <div className={`text-sm font-semibold ${
+                            outboundMeta.prospect.icpScore >= 70 ? "text-emerald-500" :
+                            outboundMeta.prospect.icpScore >= 40 ? "text-amber-500" : "text-red-400"
+                          }`}>
+                            {outboundMeta.prospect.icpScore}/100
+                          </div>
+                          {outboundMeta.prospect.researchConfidence && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                              outboundMeta.prospect.researchConfidence === "HIGH" ? "bg-emerald-500/10 text-emerald-500" :
+                              outboundMeta.prospect.researchConfidence === "MEDIUM" ? "bg-amber-500/10 text-amber-500" :
+                              "bg-red-400/10 text-red-400"
+                            }`}>
+                              {outboundMeta.prospect.researchConfidence} confidence
+                            </span>
+                          )}
+                        </div>
+                        <div />
+                        {outboundMeta.prospect.icpFactors && (
+                          <>
+                            {Object.entries(outboundMeta.prospect.icpFactors as Record<string, { score?: number; reason?: string }>)
+                              .filter(([key]) => key !== "summary")
+                              .map(([key, val]) => (
+                              <div key={key} className="contents">
+                                <div className="text-[11px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</div>
+                                <div className="text-[12px] text-foreground/80">{val.reason || `${val.score}/100`}</div>
+                              </div>
+                            ))}
+                            {(outboundMeta.prospect.icpFactors as Record<string, unknown>).summary && (
+                              <div className="col-span-2 text-[12px] text-muted-foreground border-t border-white/[0.05] pt-2 mt-1">
+                                {(outboundMeta.prospect.icpFactors as Record<string, unknown>).summary as string}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -248,7 +305,7 @@ export function InboxView({
                 {/* AI reasoning */}
                 <div>
                   <div className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.05em] mb-2">
-                    AI Reasoning
+                    {isOutbound ? "Personalization Reasoning" : "AI Reasoning"}
                   </div>
                   <div className="bg-indigo-500/[0.04] border border-indigo-500/[0.08] rounded-lg px-4 py-3 text-sm leading-relaxed">
                     {current.reasoning}

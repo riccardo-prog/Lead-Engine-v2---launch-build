@@ -187,9 +187,10 @@ export async function runOutboundSendCron(clientId: string): Promise<{
         // Idempotency: skip regeneration if content already exists
         let finalSubject = subject
         let finalBody = email.body
+        let personalized: { subject: string; body: string; wordCount: number; reasoning: string } | null = null
 
         if (!email.body || email.body === "") {
-          const personalized = await personalizeEmail({
+          personalized = await personalizeEmail({
             prospect,
             step,
             fromName: account.from_name,
@@ -225,7 +226,7 @@ export async function runOutboundSendCron(clientId: string): Promise<{
             client_id: clientId,
             lead_id: prospect.lead_id || null,
             action_type: "send_outbound",
-            reasoning: `Outbound email step ${email.step_order} to ${prospect.email} (${prospect.first_name || "prospect"}) — ${step.stance}`,
+            reasoning: personalized?.reasoning || `Outbound step ${email.step_order} to ${prospect.email}`,
             proposed_content: JSON.stringify({
               emailId: email.id,
               prospectId: prospect.id,
@@ -233,6 +234,19 @@ export async function runOutboundSendCron(clientId: string): Promise<{
               subject: finalSubject,
               body: finalBody,
               toEmail: prospect.email,
+              prospect: {
+                firstName: prospect.first_name,
+                lastName: prospect.last_name,
+                company: prospect.company,
+                title: prospect.title,
+                icpScore: prospect.icp_score,
+                icpFactors: prospect.icp_factors,
+                researchConfidence: prospect.research_confidence,
+              },
+              stepInfo: {
+                stepOrder: email.step_order,
+                stance: step.stance,
+              },
             }),
             status: "pending",
           })
