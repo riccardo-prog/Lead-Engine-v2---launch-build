@@ -51,7 +51,7 @@ const navItems = [
   },
 ]
 
-export function Sidebar({ userEmail, userName, businessName }: { userEmail: string; userName?: string | null; businessName?: string }) {
+export function Sidebar({ userEmail, userName, businessName, hasOutbound }: { userEmail: string; userName?: string | null; businessName?: string; hasOutbound?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -131,7 +131,7 @@ export function Sidebar({ userEmail, userName, businessName }: { userEmail: stri
 
       {/* Navigation */}
       <nav className="flex flex-col gap-0.5 px-2 mt-1">
-        {navItems.map((item) => {
+        {navItems.filter((item) => item.href !== "/pipeline/outbound" || hasOutbound).map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/")
           return (
             <Link

@@ -17,11 +17,18 @@ export default async function SettingsPage({
     .select("id, provider, account_email, metadata, connected_at, updated_at")
     .eq("client_id", config.clientId)
 
-  const calcom = {
+  // Cal.com: only show as configured if this client uses cal.com as their booking provider
+  const isCalcomClient = config.booking?.provider === "cal.com"
+  const calcom = isCalcomClient ? {
     configured: !!(process.env.CAL_API_KEY && process.env.CAL_EVENT_TYPE_ID),
-    bookingUrl: process.env.OPERATEAI_BOOKING_URL || config.booking?.url || null,
+    bookingUrl: config.booking?.url || null,
     eventTypeId: process.env.CAL_EVENT_TYPE_ID || null,
-  }
+  } : undefined
+
+  // Determine which integrations this client should see based on their channels
+  const hasMetaChannels = config.channels?.some((ch: string) =>
+    ["instagram_dm", "facebook_dm"].includes(ch)
+  )
 
   return (
     <SettingsView
@@ -30,6 +37,8 @@ export default async function SettingsPage({
       justConnected={params.connected}
       errorMessage={params.error}
       calcom={calcom}
+      showMeta={!!hasMetaChannels}
+      emailProvider={config.emailProvider || "gmail"}
     />
   )
 }

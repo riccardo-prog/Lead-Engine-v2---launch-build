@@ -51,12 +51,16 @@ export function SettingsView({
   justConnected,
   errorMessage,
   calcom,
+  showMeta = true,
+  emailProvider = "gmail",
 }: {
   config: ClientConfig
   connections: Connection[]
   justConnected?: string
   errorMessage?: string
   calcom?: CalcomStatus
+  showMeta?: boolean
+  emailProvider?: "gmail" | "outlook"
 }) {
   const router = useRouter()
 
@@ -120,36 +124,44 @@ export function SettingsView({
         </div>
 
         <div className="flex flex-col gap-3">
-          <IntegrationRow
-            name="Microsoft Outlook"
-            description="Send and read emails through your Outlook account"
-            connected={!!microsoftConnection}
-            accountLabel={microsoftConnection?.account_email || undefined}
-            onConnect={() => { window.location.href = "/api/auth/microsoft/start" }}
-            onDisconnect={microsoftConnection ? () => handleDisconnect(microsoftConnection.id) : undefined}
-          />
-          <IntegrationRow
-            name="Google Gmail"
-            description="Send and read emails through your Gmail account"
-            connected={!!googleConnection}
-            accountLabel={googleConnection?.account_email || undefined}
-            onConnect={() => { window.location.href = "/api/auth/google/start" }}
-            onDisconnect={googleConnection ? () => handleDisconnect(googleConnection.id) : undefined}
-          />
-          <IntegrationRow
-            name="Meta (Facebook + Instagram)"
-            description="Receive leads and messages from Meta ads and DMs"
-            connected={!!metaConnection}
-            accountLabel={metaConnection?.metadata?.page_name || metaConnection?.account_email || undefined}
-            onConnect={() => { window.location.href = "/api/auth/meta/start" }}
-            onDisconnect={metaConnection ? () => handleDisconnect(metaConnection.id) : undefined}
-          />
-          <IntegrationRow
-            name="Cal.com"
-            description="Book meetings directly from conversations"
-            connected={!!calcom?.configured}
-            accountLabel={calcom?.bookingUrl || undefined}
-          />
+          {emailProvider === "outlook" && (
+            <IntegrationRow
+              name="Microsoft Outlook"
+              description="Send and read emails through your Outlook account"
+              connected={!!microsoftConnection}
+              accountLabel={microsoftConnection?.account_email || undefined}
+              onConnect={() => { window.location.href = "/api/auth/microsoft/start" }}
+              onDisconnect={microsoftConnection ? () => handleDisconnect(microsoftConnection.id) : undefined}
+            />
+          )}
+          {emailProvider === "gmail" && (
+            <IntegrationRow
+              name="Google Gmail"
+              description="Send and read emails through your Gmail account"
+              connected={!!googleConnection}
+              accountLabel={googleConnection?.account_email || undefined}
+              onConnect={() => { window.location.href = "/api/auth/google/start" }}
+              onDisconnect={googleConnection ? () => handleDisconnect(googleConnection.id) : undefined}
+            />
+          )}
+          {showMeta && (
+            <IntegrationRow
+              name="Meta (Facebook + Instagram)"
+              description="Receive leads and messages from Meta ads and DMs"
+              connected={!!metaConnection}
+              accountLabel={metaConnection?.metadata?.page_name || metaConnection?.account_email || undefined}
+              onConnect={() => { window.location.href = "/api/auth/meta/start" }}
+              onDisconnect={metaConnection ? () => handleDisconnect(metaConnection.id) : undefined}
+            />
+          )}
+          {calcom && (
+            <IntegrationRow
+              name="Cal.com"
+              description="Book meetings directly from conversations"
+              connected={calcom.configured}
+              accountLabel={calcom.bookingUrl || undefined}
+            />
+          )}
         </div>
       </div>
 

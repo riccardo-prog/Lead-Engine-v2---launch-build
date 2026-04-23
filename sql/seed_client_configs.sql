@@ -27,6 +27,7 @@ VALUES (
       {"id": "manual", "type": "manual", "label": "Manual Entry", "funnelStageOnEntry": "new"}
     ],
     "channels": ["email"],
+    "emailProvider": "gmail",
     "aiPersona": {
       "name": "Ari",
       "role": "AI business development assistant for OperateAI",
@@ -139,6 +140,7 @@ VALUES (
       {"id": "csv", "type": "csv_import", "label": "CSV Import", "funnelStageOnEntry": "new"}
     ],
     "channels": ["email", "sms", "instagram_dm", "facebook_dm"],
+    "emailProvider": "outlook",
     "aiPersona": {
       "name": "Alex",
       "role": "Real estate assistant for Joseph Pavone",

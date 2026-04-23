@@ -72,6 +72,7 @@ export type ClientConfig = {
   aiPersona: AIPersona
   messagingRules: MessagingRule[]
   qualification: QualificationCriteria
+  emailProvider?: "gmail" | "outlook"
   booking: BookingConfig
   conversationScripts: ConversationScript[]
   humanApprovalRequired: boolean
