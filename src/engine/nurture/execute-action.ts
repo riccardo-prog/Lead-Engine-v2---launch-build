@@ -5,8 +5,11 @@ import { checkAvailability, createBooking } from "@/engine/booking/calcom"
 import { getConfig } from "@/lib/config"
 import { notify, leadName } from "@/engine/notifications/notify"
 import { invalidateSummary } from "@/engine/nurture/summarize-lead"
+import { scheduleRemainingSteps } from "@/engine/outbound/send-cron"
+import { getSequence } from "@/engine/outbound/campaigns"
 import type { Lead, AIAction } from "@/types/database"
 import type { ChannelType } from "@/config/schema"
+import type { SequenceStep } from "@/engine/outbound/types"
 
 export type ExecuteResult = {
   success: boolean
@@ -475,12 +478,34 @@ async function handleSendOutbound(action: AIAction, config: Awaited<ReturnType<t
     .eq("id", meta.prospectId)
     .eq("status", "pending")
 
-  // Update sending account daily count
+  // Schedule remaining steps if this was step 0
+  const { data: emailRecord } = await supabase
+    .from("outbound_emails")
+    .select("step_order")
+    .eq("id", meta.emailId)
+    .maybeSingle()
+
   const { data: campaign } = await supabase
     .from("outbound_campaigns")
-    .select("sending_account_id")
+    .select("sending_account_id, sequence_id")
     .eq("id", meta.campaignId)
     .maybeSingle()
+
+  if (emailRecord?.step_order === 0 && campaign?.sequence_id) {
+    const sequence = await getSequence(campaign.sequence_id)
+    if (sequence) {
+      await scheduleRemainingSteps({
+        supabase,
+        clientId: config.clientId,
+        prospectId: meta.prospectId,
+        campaignId: meta.campaignId,
+        steps: sequence.steps as SequenceStep[],
+        step0SentAt: new Date(),
+      })
+    }
+  }
+
+  // Update sending account daily count
 
   if (campaign?.sending_account_id) {
     const { data: account } = await supabase

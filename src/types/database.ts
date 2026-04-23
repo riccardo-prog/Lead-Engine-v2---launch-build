@@ -108,7 +108,7 @@ export type Notification = {
 export type AIAction = {
   id: string
   client_id: string
-  lead_id: string
+  lead_id: string | null
   created_at: string
 
   action_type: "send_message" | "send_outbound" | "advance_stage" | "book_appointment" | "disqualify" | "flag_human"

@@ -340,7 +340,8 @@ export async function runOutboundSendCron(clientId: string): Promise<{
               .update({ sends_failed_today: account.sends_failed_today })
               .eq("id", account.id)
 
-            if (account.sends_today > 0 && account.sends_failed_today / account.sends_today > 0.10) {
+            const totalAttempts = account.sends_today + account.sends_failed_today
+            if (totalAttempts >= 5 && account.sends_failed_today / totalAttempts > 0.10) {
               await pauseAccount(supabase, account.id, 24 * 60, "bounce_rate_exceeded")
               stats.failed++
               break
@@ -360,7 +361,7 @@ export async function runOutboundSendCron(clientId: string): Promise<{
   return stats
 }
 
-async function scheduleRemainingSteps({
+export async function scheduleRemainingSteps({
   supabase,
   clientId,
   prospectId,
