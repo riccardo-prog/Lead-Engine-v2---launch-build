@@ -34,7 +34,7 @@ export async function POST(
       })
       .eq("campaign_id", campaignId)
       .eq("client_id", clientId)
-      .in("status", ["awaiting_approval"])
+      .in("status", ["awaiting_approval", "pending", "sending"])
       .select("id")
 
     // Also delete the old ai_actions for these emails
