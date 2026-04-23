@@ -5,6 +5,7 @@ type PersonalizedEmail = {
   subject: string
   body: string
   wordCount: number
+  reasoning: string
 }
 
 export async function personalizeEmail({
@@ -54,9 +55,14 @@ COLD EMAIL RULES (from operator):
 SOCIAL PROOF (if available):
 ${socialProofBlock}
 
-Write the email. Subject line first (one line), then a blank line, then the body.
-Sign as ${fromName}.
-Do not include any preamble or commentary — just the subject and body.`
+Write the email in this exact format:
+
+REASONING: (1-2 sentences: what you personalized on, why you chose this angle, what data from the research brief you used or didn't use)
+
+SUBJECT: (one line)
+
+BODY:
+(the email body, signed as ${fromName})`
 
   const prompt = "Write the email now."
 
@@ -74,32 +80,42 @@ Do not include any preamble or commentary — just the subject and body.`
 }
 
 function parseEmailOutput(raw: string, fromName: string): PersonalizedEmail {
-  const lines = raw.trim().split("\n")
+  const text = raw.trim()
 
-  // First non-empty line is the subject
-  let subjectLine = ""
-  let bodyStartIndex = 0
+  // Extract reasoning
+  let reasoning = ""
+  const reasoningMatch = text.match(/REASONING:\s*([\s\S]*?)(?=\nSUBJECT:)/i)
+  if (reasoningMatch) {
+    reasoning = reasoningMatch[1].trim()
+  }
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (line) {
-      subjectLine = line.replace(/^subject:\s*/i, "")
-      bodyStartIndex = i + 1
-      break
+  // Extract subject
+  let subject = ""
+  const subjectMatch = text.match(/SUBJECT:\s*(.+)/i)
+  if (subjectMatch) {
+    subject = subjectMatch[1].trim()
+  }
+
+  // Extract body
+  let body = ""
+  const bodyMatch = text.match(/BODY:\s*([\s\S]*)/i)
+  if (bodyMatch) {
+    body = bodyMatch[1].trim()
+  } else {
+    // Fallback: everything after subject line
+    const lines = text.split("\n")
+    const subjectIdx = lines.findIndex((l) => /^subject:/i.test(l.trim()))
+    if (subjectIdx >= 0) {
+      body = lines.slice(subjectIdx + 1).join("\n").trim()
     }
   }
 
-  // Skip blank lines between subject and body
-  while (bodyStartIndex < lines.length && !lines[bodyStartIndex].trim()) {
-    bodyStartIndex++
-  }
-
-  const body = lines.slice(bodyStartIndex).join("\n").trim()
   const wordCount = body.split(/\s+/).filter(Boolean).length
 
   return {
-    subject: subjectLine || `Quick question, ${fromName}`,
+    subject: subject || `Quick question, ${fromName}`,
     body,
     wordCount,
+    reasoning,
   }
 }

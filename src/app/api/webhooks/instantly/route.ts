@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { processIntake } from "@/engine/intake/process-lead"
-import { getConfig } from "@/lib/config"
+import { getConfig, getAllClientIds } from "@/lib/config"
+import { createServiceClient } from "@/lib/supabase-server"
 
 const INSTANTLY_SECRET = process.env.INSTANTLY_WEBHOOK_SECRET
 
@@ -8,14 +9,9 @@ const INSTANTLY_SECRET = process.env.INSTANTLY_WEBHOOK_SECRET
  * Instantly webhook — receives reply_received events from cold outbound campaigns.
  * Maps the Instantly payload to our intake format and processes as cold-email-reply.
  *
- * Setup in Instantly:
- * 1. Go to Settings → Webhooks
- * 2. Add webhook URL: https://your-domain/api/webhooks/instantly
- * 3. Event: reply_received
- * 4. Add header: x-instantly-secret = <your INSTANTLY_WEBHOOK_SECRET>
+ * Resolves tenant by looking up which client owns the prospect email.
  */
 export async function POST(request: NextRequest) {
-  // Verify webhook authenticity
   if (INSTANTLY_SECRET) {
     const secret = request.headers.get("x-instantly-secret")
     if (secret !== INSTANTLY_SECRET) {
@@ -28,7 +24,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // Only process reply events
     if (body.event_type !== "reply_received") {
       return NextResponse.json({ skipped: true, reason: "not_a_reply" })
     }
@@ -38,18 +33,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "no_lead_email" }, { status: 400 })
     }
 
-    // Extract name from email if available (Instantly doesn't always send name)
+    // Resolve client by finding which tenant has this prospect
+    const supabase = createServiceClient()
+    const { data: prospect } = await supabase
+      .from("outbound_prospects")
+      .select("client_id")
+      .eq("email", email.toLowerCase())
+      .limit(1)
+      .maybeSingle()
+
+    const clientId = prospect?.client_id
+    if (!clientId) {
+      return NextResponse.json({ error: "no_matching_prospect" }, { status: 404 })
+    }
+
+    const config = await getConfig(clientId)
+
     const replyContent = body.reply_text || body.reply_text_snippet || ""
     const subject = body.reply_subject || ""
-
-    const config = await getConfig("operate-ai")
 
     const result = await processIntake({
       config,
       payload: {
         sourceId: "cold-email-reply",
         email,
-        clientId: "operate-ai",
+        clientId,
         initialMessage: {
           channel: "email",
           content: replyContent,

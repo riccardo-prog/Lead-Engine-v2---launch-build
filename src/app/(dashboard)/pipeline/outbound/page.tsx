@@ -1,11 +1,11 @@
 import { getClientIdFromSession } from "@/lib/config"
-import { createServerSupabaseClient } from "@/lib/supabase-server"
+import { createServiceClient } from "@/lib/supabase-server"
 import { CampaignList } from "@/components/outbound/campaign-list"
 import type { OutboundCampaign } from "@/engine/outbound/types"
 
 export default async function OutboundPage() {
   const clientId = await getClientIdFromSession()
-  const supabase = await createServerSupabaseClient()
+  const supabase = createServiceClient()
 
   const { data: campaigns } = await supabase
     .from("outbound_campaigns")

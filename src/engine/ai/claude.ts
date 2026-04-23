@@ -64,8 +64,8 @@ export async function askClaudeJSON<T>({
   }
 }
 
-const HAIKU_MODEL = "claude-haiku-4-5-20241022"
-const SONNET_MODEL = "claude-sonnet-4-5-20241022"
+const HAIKU_MODEL = "claude-haiku-4-5-20251001"
+const SONNET_MODEL = "claude-sonnet-4-5-20250929"
 
 export async function askHaikuJSON<T>({
   system,

@@ -21,7 +21,7 @@ export type ProspectStatus =
 
 export type CampaignStatus = "draft" | "active" | "paused" | "completed"
 
-export type OutboundEmailStatus = "pending" | "sent" | "failed" | "bounced"
+export type OutboundEmailStatus = "pending" | "sending" | "sent" | "failed" | "bounced" | "cancelled" | "awaiting_approval"
 
 export type SentimentResult = "reply_to_continue" | "reply_to_pause" | "reply_to_stop"
 

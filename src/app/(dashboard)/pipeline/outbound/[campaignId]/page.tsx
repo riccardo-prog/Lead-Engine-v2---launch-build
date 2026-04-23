@@ -1,7 +1,7 @@
 import { getClientIdFromSession } from "@/lib/config"
-import { createServerSupabaseClient } from "@/lib/supabase-server"
+import { createServiceClient } from "@/lib/supabase-server"
 import { CampaignDetail } from "@/components/outbound/campaign-detail"
-import type { OutboundCampaign, OutboundProspect, OutboundReply } from "@/engine/outbound/types"
+import type { OutboundCampaign, OutboundProspect, OutboundReply, OutboundEmail } from "@/engine/outbound/types"
 
 export default async function CampaignDetailPage({
   params,
@@ -10,7 +10,7 @@ export default async function CampaignDetailPage({
 }) {
   const { campaignId } = await params
   const clientId = await getClientIdFromSession()
-  const supabase = await createServerSupabaseClient()
+  const supabase = createServiceClient()
 
   const { data: campaign } = await supabase
     .from("outbound_campaigns")
@@ -37,16 +37,24 @@ export default async function CampaignDetailPage({
     .from("outbound_prospects")
     .select("*")
     .eq("campaign_id", campaignId)
-    .order("created_at", { ascending: false })
-    .limit(50)
+    .order("icp_score", { ascending: false, nullsFirst: false })
 
   const prospectList = (prospects as OutboundProspect[]) || []
 
   const prospectIds = prospectList.map((p) => p.id)
-  const { data: replies } = await supabase
-    .from("outbound_replies")
-    .select("*")
-    .in("prospect_id", prospectIds.length > 0 ? prospectIds : ["__none__"])
+  const safeIds = prospectIds.length > 0 ? prospectIds : ["__none__"]
+
+  const [{ data: replies }, { data: emails }] = await Promise.all([
+    supabase
+      .from("outbound_replies")
+      .select("*")
+      .in("prospect_id", safeIds),
+    supabase
+      .from("outbound_emails")
+      .select("*")
+      .in("prospect_id", safeIds)
+      .order("step_order", { ascending: true }),
+  ])
 
   const replyMap = new Map<string, OutboundReply>()
   if (replies) {
@@ -55,15 +63,31 @@ export default async function CampaignDetailPage({
     }
   }
 
-  const prospectsWithReplies = prospectList.map((p) => ({
+  const emailMap = new Map<string, OutboundEmail[]>()
+  if (emails) {
+    for (const e of emails as OutboundEmail[]) {
+      const list = emailMap.get(e.prospect_id) || []
+      list.push(e)
+      emailMap.set(e.prospect_id, list)
+    }
+  }
+
+  const prospectsWithData = prospectList.map((p) => ({
     ...p,
     reply: replyMap.get(p.id) || null,
+    emails: emailMap.get(p.id) || [],
   }))
 
   const { count: prospectCount } = await supabase
     .from("outbound_prospects")
     .select("id", { count: "exact", head: true })
     .eq("campaign_id", campaignId)
+
+  const { count: enrolledCount } = await supabase
+    .from("outbound_prospects")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId)
+    .neq("status", "suppressed")
 
   const { count: sentCount } = await supabase
     .from("outbound_emails")
@@ -88,6 +112,7 @@ export default async function CampaignDetailPage({
 
   const stats = {
     prospects: prospectCount || 0,
+    enrolled: enrolledCount || 0,
     sent,
     replyRate: sent > 0 ? ((rCount / sent) * 100).toFixed(1) : "0",
     positiveRate: rCount > 0 ? ((pCount / rCount) * 100).toFixed(1) : "0",
@@ -97,7 +122,7 @@ export default async function CampaignDetailPage({
     <div className="p-6 max-w-6xl mx-auto">
       <CampaignDetail
         campaign={c}
-        prospects={prospectsWithReplies}
+        prospects={prospectsWithData}
         totalSteps={totalSteps}
         stats={stats}
       />

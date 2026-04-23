@@ -51,7 +51,7 @@ const navItems = [
   },
 ]
 
-export function Sidebar({ userEmail, userName }: { userEmail: string; userName?: string | null }) {
+export function Sidebar({ userEmail, userName, businessName }: { userEmail: string; userName?: string | null; businessName?: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -97,7 +97,7 @@ export function Sidebar({ userEmail, userName }: { userEmail: string; userName?:
           {!collapsed && (
             <div>
               <div className="text-sm font-semibold text-foreground">Lead Engine</div>
-              <div className="text-[11px] text-muted-foreground">OperateAI</div>
+              <div className="text-[11px] text-muted-foreground">{businessName || "Lead Engine"}</div>
             </div>
           )}
         </div>

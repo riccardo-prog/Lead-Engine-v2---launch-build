@@ -9,6 +9,27 @@ const KNOWN_COLUMNS = new Set([
   "linkedin_url", "website_url", "company_description",
 ])
 
+// Map common Apollo/Clay column names to our standard fields
+const COLUMN_ALIASES: Record<string, string> = {
+  company_name: "company",
+  company_name_for_emails: "company",
+  person_linkedin_url: "linkedin_url",
+  website: "website_url",
+  keywords: "company_description",
+}
+
+function normalizeRow(row: CSVRow): CSVRow {
+  const normalized: CSVRow = {}
+  for (const [key, value] of Object.entries(row)) {
+    const mapped = COLUMN_ALIASES[key] || key
+    // Don't overwrite if the canonical field already has a value
+    if (!normalized[mapped] || !normalized[mapped].trim()) {
+      normalized[mapped] = value
+    }
+  }
+  return normalized
+}
+
 export type CSVRow = Record<string, string>
 
 export type ImportResult = {
@@ -55,6 +76,98 @@ function parseCsvLine(line: string): string[] {
   return result
 }
 
+export async function rescoreProspects({
+  campaignId,
+  clientId,
+  businessName,
+  icpDescription,
+  icpCriteria,
+  icpThreshold,
+}: {
+  campaignId: string
+  clientId: string
+  businessName: string
+  icpDescription: string
+  icpCriteria: Record<string, unknown> | null
+  icpThreshold: number
+}): Promise<{ scored: number; suppressed: number; errors: string[] }> {
+  const supabase = createServiceClient()
+  const stats = { scored: 0, suppressed: 0, errors: [] as string[] }
+
+  // Get all prospects with null ICP scores
+  const { data: prospects } = await supabase
+    .from("outbound_prospects")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .eq("client_id", clientId)
+    .is("icp_score", null)
+
+  if (!prospects || prospects.length === 0) return stats
+
+  for (const raw of prospects) {
+    const p = raw as OutboundProspect
+
+    try {
+      const icpResult = await scoreProspectICP({
+        prospect: p,
+        businessName,
+        icpDescription,
+        icpCriteria,
+      })
+
+      const { error: updateError } = await supabase
+        .from("outbound_prospects")
+        .update({
+          icp_score: icpResult.score,
+          icp_factors: { ...icpResult.factors, summary: icpResult.summary },
+        })
+        .eq("id", p.id)
+
+      if (updateError) {
+        stats.errors.push(`${p.email}: update failed: ${updateError.message}`)
+        continue
+      }
+
+      if (icpResult.score < icpThreshold) {
+        // Suppress low-score prospects and cancel their pending emails
+        await supabase
+          .from("outbound_prospects")
+          .update({ status: "suppressed" })
+          .eq("id", p.id)
+        await supabase
+          .from("outbound_emails")
+          .update({ status: "cancelled" })
+          .eq("prospect_id", p.id)
+          .eq("status", "pending")
+        stats.suppressed++
+      } else {
+        stats.scored++
+      }
+
+      // Research brief if missing
+      if (!p.research_brief) {
+        try {
+          const brief = await generateResearchBrief(p)
+          await supabase
+            .from("outbound_prospects")
+            .update({
+              research_brief: brief.brief,
+              research_confidence: brief.confidence,
+            })
+            .eq("id", p.id)
+        } catch {
+          stats.errors.push(`${p.email}: research brief failed`)
+        }
+      }
+    } catch (e) {
+      console.error(`Rescore failed for ${p.email}:`, e)
+      stats.errors.push(`${p.email}: scoring failed: ${e instanceof Error ? e.message : "unknown"}`)
+    }
+  }
+
+  return stats
+}
+
 export async function importProspects({
   campaignId,
   clientId,
@@ -82,7 +195,8 @@ export async function importProspects({
     errors: [],
   }
 
-  for (const row of rows) {
+  for (const rawRow of rows) {
+    const row = normalizeRow(rawRow)
     const email = row.email?.toLowerCase()
     if (!email) {
       result.errors.push("Row missing email")
@@ -143,13 +257,19 @@ export async function importProspects({
         icpCriteria,
       })
 
-      await supabase
+      const { error: scoreUpdateError } = await supabase
         .from("outbound_prospects")
         .update({
           icp_score: icpResult.score,
-          icp_factors: icpResult.factors,
+          icp_factors: { ...icpResult.factors, summary: icpResult.summary },
         })
         .eq("id", p.id)
+
+      if (scoreUpdateError) {
+        console.error(`ICP score update failed for ${email}:`, scoreUpdateError)
+        result.errors.push(`${email}: ICP score update failed: ${scoreUpdateError.message}`)
+        continue
+      }
 
       if (icpResult.score < icpThreshold) {
         await supabase
@@ -160,6 +280,7 @@ export async function importProspects({
         continue
       }
     } catch (e) {
+      console.error(`ICP scoring failed for ${email}:`, e)
       result.errors.push(`${email}: ICP scoring failed`)
       continue
     }
@@ -167,14 +288,20 @@ export async function importProspects({
     // Research brief
     try {
       const brief = await generateResearchBrief(p)
-      await supabase
+      const { error: briefUpdateError } = await supabase
         .from("outbound_prospects")
         .update({
           research_brief: brief.brief,
           research_confidence: brief.confidence,
         })
         .eq("id", p.id)
+
+      if (briefUpdateError) {
+        console.error(`Research brief update failed for ${email}:`, briefUpdateError)
+        result.errors.push(`${email}: Research brief update failed`)
+      }
     } catch (e) {
+      console.error(`Research brief failed for ${email}:`, e)
       result.errors.push(`${email}: Research brief failed`)
       // Don't skip — prospect can still be enrolled with no brief
     }

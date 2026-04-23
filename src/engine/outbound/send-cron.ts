@@ -126,6 +126,13 @@ export async function runOutboundSendCron(clientId: string): Promise<{
         continue
       }
 
+      // Skip unscored prospects — don't waste personalization on prospects without ICP scores
+      if (prospect.icp_score == null) {
+        await supabase.from("outbound_emails").update({ status: "pending" }).eq("id", email.id)
+        stats.skipped++
+        continue
+      }
+
       // Suppression check
       if (await isSuppressed(clientId, prospect.email)) {
         await supabase.from("outbound_emails").update({ status: "cancelled" }).eq("id", email.id)
@@ -186,8 +193,8 @@ export async function runOutboundSendCron(clientId: string): Promise<{
             prospect,
             step,
             fromName: account.from_name,
-            businessName: campaign.name,
-            socialProof: campaign.social_proof || undefined,
+            businessName: config.businessName,
+            socialProof: campaign.social_proof || config.outbound?.socialProof || undefined,
           })
 
           if (!finalSubject) finalSubject = personalized.subject
@@ -199,6 +206,7 @@ export async function runOutboundSendCron(clientId: string): Promise<{
               subject: finalSubject,
               body: finalBody,
               word_count: personalized.wordCount,
+              ai_reasoning: personalized.reasoning || null,
             })
             .eq("id", email.id)
         } else {

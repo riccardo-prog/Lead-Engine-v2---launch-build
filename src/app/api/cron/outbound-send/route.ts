@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { runOutboundSendCron } from "@/engine/outbound/send-cron"
+import { getAllClientIds } from "@/lib/config"
 
 const CRON_SECRET = process.env.CRON_SECRET
 
@@ -11,11 +12,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  try {
-    const result = await runOutboundSendCron("operate-ai")
-    return NextResponse.json(result)
-  } catch (e) {
-    console.error("Outbound send cron error", e)
-    return NextResponse.json({ error: "server_error" }, { status: 500 })
+  const results: Record<string, unknown> = {}
+
+  for (const clientId of getAllClientIds()) {
+    try {
+      results[clientId] = await runOutboundSendCron(clientId)
+    } catch (e) {
+      console.error(`Outbound send cron error for ${clientId}`, e)
+      results[clientId] = { error: "server_error" }
+    }
   }
+
+  return NextResponse.json(results)
 }

@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
+import { getConfig } from "@/lib/config"
 
 export default async function DashboardLayout({
   children,
@@ -12,9 +13,20 @@ export default async function DashboardLayout({
 
   if (!user) redirect("/login")
 
+  const clientId = user.app_metadata?.client_id as string | undefined
+  let businessName: string | undefined
+  if (clientId) {
+    try {
+      const config = await getConfig(clientId)
+      businessName = config.businessName
+    } catch {
+      // Fall back to generic if config fails
+    }
+  }
+
   return (
     <div className="flex h-screen">
-      <Sidebar userEmail={user.email || ""} userName={user.user_metadata?.full_name || user.user_metadata?.name || null} />
+      <Sidebar userEmail={user.email || ""} userName={user.user_metadata?.full_name || user.user_metadata?.name || null} businessName={businessName} />
       <main className="flex-1 overflow-y-auto bg-background p-8">
         {children}
       </main>

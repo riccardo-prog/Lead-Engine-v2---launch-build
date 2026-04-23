@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS outbound_emails (
   send_after TIMESTAMPTZ NOT NULL,
   failure_reason TEXT,
   word_count INTEGER,
+  ai_reasoning TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

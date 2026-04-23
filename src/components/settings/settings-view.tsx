@@ -39,16 +39,24 @@ function friendlyError(code: string | undefined): string | null {
   return FRIENDLY_ERRORS[code] || `Something went wrong (${code}).`
 }
 
+type CalcomStatus = {
+  configured: boolean
+  bookingUrl: string | null
+  eventTypeId: string | null
+}
+
 export function SettingsView({
   config,
   connections,
   justConnected,
   errorMessage,
+  calcom,
 }: {
   config: ClientConfig
   connections: Connection[]
   justConnected?: string
   errorMessage?: string
+  calcom?: CalcomStatus
 }) {
   const router = useRouter()
 
@@ -139,8 +147,8 @@ export function SettingsView({
           <IntegrationRow
             name="Cal.com"
             description="Book meetings directly from conversations"
-            connected={false}
-            comingSoon
+            connected={!!calcom?.configured}
+            accountLabel={calcom?.bookingUrl || undefined}
           />
         </div>
       </div>

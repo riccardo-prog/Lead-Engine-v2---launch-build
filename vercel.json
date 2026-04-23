@@ -11,6 +11,14 @@
     {
       "path": "/api/scheduled/follow-up",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/outbound-send",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/wake-paused-leads",
+      "schedule": "0 13 * * *"
     }
   ]
 }
