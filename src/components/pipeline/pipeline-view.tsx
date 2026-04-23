@@ -173,7 +173,7 @@ export function PipelineView({
           placeholder="Search leads..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3.5 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm outline-none max-w-xs focus:border-indigo-500/30 transition-colors"
+          className="px-3.5 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm outline-none w-full md:max-w-xs focus:border-indigo-500/30 transition-colors"
         />
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground uppercase tracking-wide">Score</span>
@@ -184,7 +184,7 @@ export function PipelineView({
             onChange={(e) => setScoreMin(e.target.value)}
             className="w-16 px-2 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm outline-none text-center tabular-nums focus:border-indigo-500/30 transition-colors"
           />
-          <span className="text-muted-foreground text-xs">–</span>
+          <span className="text-muted-foreground text-xs">-</span>
           <input
             type="number"
             placeholder="Max"
@@ -195,9 +195,8 @@ export function PipelineView({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="border border-indigo-500/[0.06] rounded-xl overflow-hidden bg-card">
-        {/* Header row */}
+      {/* Desktop table */}
+      <div className="hidden md:block border border-indigo-500/[0.06] rounded-xl overflow-hidden bg-card">
         <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr_80px] px-4 py-3 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wide bg-indigo-500/[0.02]">
           <div>Lead</div>
           <div>Stage</div>
@@ -206,14 +205,12 @@ export function PipelineView({
           <div className="text-right">Score</div>
         </div>
 
-        {/* Empty state */}
         {filtered.length === 0 && (
           <div className="py-10 px-4 text-center text-muted-foreground text-sm">
             No leads yet. They&apos;ll show up here as they come in.
           </div>
         )}
 
-        {/* Data rows */}
         {filtered.map((lead) => {
           const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unnamed"
           const updated = new Date(lead.updated_at)
@@ -243,13 +240,62 @@ export function PipelineView({
                   </span>
                 </div>
                 <div className="text-muted-foreground">
-                  {sourceMap[lead.source_id] || "—"}
+                  {sourceMap[lead.source_id] || "-"}
                 </div>
                 <div className="text-muted-foreground text-[13px]">
                   {relative}
                 </div>
                 <div className="text-right tabular-nums">
                   {lead.score}
+                </div>
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden flex flex-col gap-2">
+        {filtered.length === 0 && (
+          <div className="py-10 px-4 text-center text-muted-foreground text-sm border border-border rounded-xl bg-card">
+            No leads yet. They&apos;ll show up here as they come in.
+          </div>
+        )}
+
+        {filtered.map((lead) => {
+          const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unnamed"
+          const updated = new Date(lead.updated_at)
+          const relative = timeAgo(updated)
+          const temp = getTemperature(lead)
+          const badgeStyle = stageBadgeStyles[lead.stage_id] || "text-muted-foreground bg-muted"
+
+          return (
+            <Link
+              key={lead.id}
+              href={`/pipeline/${lead.id}`}
+              className="no-underline text-inherit"
+            >
+              <div className="border border-border rounded-xl bg-card px-4 py-3.5 cursor-pointer hover:bg-indigo-500/[0.04] transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${tempStyles[temp]}`} />
+                    <span className="font-medium text-sm text-foreground">{name}</span>
+                  </div>
+                  <span className="text-sm tabular-nums font-medium">{lead.score}</span>
+                </div>
+                {lead.email && (
+                  <div className="text-xs text-muted-foreground mb-2">{lead.email}</div>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${badgeStyle}`}>
+                    {stageMap[lead.stage_id] || lead.stage_id}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {sourceMap[lead.source_id] || "-"}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground ml-auto">
+                    {relative}
+                  </span>
                 </div>
               </div>
             </Link>

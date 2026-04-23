@@ -112,12 +112,23 @@ export function InboxView({
   }
 
   return (
-    <div className="flex flex-col gap-6 h-[calc(100vh-96px)]">
-      <div>
-        <h1 className="text-xl font-semibold">Inbox</h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          {actions.length} {actions.length === 1 ? "action" : "actions"} waiting for your review
-        </p>
+    <div className="flex flex-col gap-4 md:gap-6 h-[calc(100vh-80px)] md:h-[calc(100vh-96px)]">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Inbox</h1>
+          <p className="text-muted-foreground mt-1 md:mt-2 text-sm">
+            {actions.length} {actions.length === 1 ? "action" : "actions"} waiting for your review
+          </p>
+        </div>
+        {/* Mobile back button when viewing detail */}
+        {selected && (
+          <button
+            onClick={() => setSelected(null)}
+            className="md:hidden px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            Back
+          </button>
+        )}
       </div>
 
       {actions.length === 0 ? (
@@ -125,9 +136,9 @@ export function InboxView({
           All caught up. The AI will queue new actions here as leads come in.
         </div>
       ) : (
-        <div className="flex-1 grid grid-cols-[280px_1fr] gap-4 min-h-0">
-          {/* Left panel — action list */}
-          <div className="border border-border rounded-xl bg-card overflow-auto">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 min-h-0">
+          {/* Left panel — action list (hidden on mobile when detail is open) */}
+          <div className={`border border-border rounded-xl bg-card overflow-auto ${selected ? "hidden md:block" : ""}`}>
             <div className="px-4 py-3 border-b border-border">
               <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
                 {actions.length} Pending
@@ -168,8 +179,8 @@ export function InboxView({
             })}
           </div>
 
-          {/* Right panel — action detail */}
-          <div className="border border-border rounded-xl bg-card p-6 overflow-auto flex flex-col gap-5">
+          {/* Right panel — action detail (hidden on mobile when no selection) */}
+          <div className={`border border-border rounded-xl bg-card p-4 md:p-6 overflow-auto flex flex-col gap-5 ${!selected ? "hidden md:flex" : ""}`}>
             {current && (currentLead || isOutbound) ? (
               <>
                 {/* Lead or prospect info */}
