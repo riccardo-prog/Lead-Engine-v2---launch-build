@@ -1,5 +1,6 @@
-import { getClientIdFromSession } from "@/lib/config"
+import { getClientIdFromSession, getConfig } from "@/lib/config"
 import { createServiceClient } from "@/lib/supabase-server"
+import { redirect } from "next/navigation"
 import { CampaignDetail } from "@/components/outbound/campaign-detail"
 import type { OutboundCampaign, OutboundProspect, OutboundReply, OutboundEmail } from "@/engine/outbound/types"
 
@@ -10,6 +11,8 @@ export default async function CampaignDetailPage({
 }) {
   const { campaignId } = await params
   const clientId = await getClientIdFromSession()
+  const config = await getConfig(clientId)
+  if (!config.outbound) redirect("/pipeline")
   const supabase = createServiceClient()
 
   const { data: campaign } = await supabase

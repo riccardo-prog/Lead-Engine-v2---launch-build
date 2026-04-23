@@ -1,10 +1,13 @@
-import { getClientIdFromSession } from "@/lib/config"
+import { getClientIdFromSession, getConfig } from "@/lib/config"
 import { createServiceClient } from "@/lib/supabase-server"
+import { redirect } from "next/navigation"
 import { CampaignList } from "@/components/outbound/campaign-list"
 import type { OutboundCampaign } from "@/engine/outbound/types"
 
 export default async function OutboundPage() {
   const clientId = await getClientIdFromSession()
+  const config = await getConfig(clientId)
+  if (!config.outbound) redirect("/pipeline")
   const supabase = createServiceClient()
 
   const { data: campaigns } = await supabase
