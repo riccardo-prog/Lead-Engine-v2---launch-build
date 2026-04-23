@@ -24,8 +24,11 @@ export async function PATCH(
     }
 
     const { status } = await request.json()
+    if (typeof status !== "string" || !["draft", "active", "paused", "completed"].includes(status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 })
+    }
     const allowed = VALID_TRANSITIONS[campaign.status] || []
-    if (!allowed.includes(status)) {
+    if (!allowed.includes(status as CampaignStatus)) {
       return NextResponse.json({ error: `Cannot transition from ${campaign.status} to ${status}` }, { status: 400 })
     }
 

@@ -99,6 +99,7 @@ export async function runOutboundSendCron(clientId: string): Promise<{
       .eq("outbound_campaigns.status", "active")
       .eq("outbound_campaigns.sending_account_id", account.id)
       .in("outbound_prospects.status", ["pending", "sending"])
+      .not("outbound_prospects.icp_score", "is", null)
       .order("send_after", { ascending: true })
       .limit(remaining)
 
@@ -122,13 +123,6 @@ export async function runOutboundSendCron(clientId: string): Promise<{
         .maybeSingle()
 
       if (!claimed) {
-        stats.skipped++
-        continue
-      }
-
-      // Skip unscored prospects — don't waste personalization on prospects without ICP scores
-      if (prospect.icp_score == null) {
-        await supabase.from("outbound_emails").update({ status: "pending" }).eq("id", email.id)
         stats.skipped++
         continue
       }

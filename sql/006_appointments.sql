@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   client_id TEXT NOT NULL,
   lead_id UUID NOT NULL REFERENCES leads(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
   scheduled_at TIMESTAMPTZ NOT NULL,
   duration_minutes INTEGER NOT NULL DEFAULT 30,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { processIntake } from "@/engine/intake/process-lead"
-import { getConfig, getAllClientIds } from "@/lib/config"
+import { getConfig } from "@/lib/config"
 import { createServiceClient } from "@/lib/supabase-server"
 
 const INSTANTLY_SECRET = process.env.INSTANTLY_WEBHOOK_SECRET

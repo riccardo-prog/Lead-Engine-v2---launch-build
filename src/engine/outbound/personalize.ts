@@ -66,20 +66,22 @@ BODY:
 
   const prompt = "Write the email now."
 
+  const prospectName = prospect.first_name || "there"
+
   let raw = await askSonnet({ system, prompt, maxTokens: 500 })
-  let parsed = parseEmailOutput(raw, fromName)
+  let parsed = parseEmailOutput(raw, prospectName)
 
   // Word count enforcement: retry once if >120% of limit
   if (parsed.wordCount > step.maxWords * 1.2) {
     const retrySystem = `${system}\n\nIMPORTANT: Your previous draft was ${parsed.wordCount} words. The limit is ${step.maxWords}. Be more concise.`
     raw = await askSonnet({ system: retrySystem, prompt, maxTokens: 500 })
-    parsed = parseEmailOutput(raw, fromName)
+    parsed = parseEmailOutput(raw, prospectName)
   }
 
   return parsed
 }
 
-function parseEmailOutput(raw: string, fromName: string): PersonalizedEmail {
+function parseEmailOutput(raw: string, prospectName: string): PersonalizedEmail {
   const text = raw.trim()
 
   // Extract reasoning
@@ -113,7 +115,7 @@ function parseEmailOutput(raw: string, fromName: string): PersonalizedEmail {
   const wordCount = body.split(/\s+/).filter(Boolean).length
 
   return {
-    subject: subject || `Quick question, ${fromName}`,
+    subject: subject || `Quick question, ${prospectName}`,
     body,
     wordCount,
     reasoning,
