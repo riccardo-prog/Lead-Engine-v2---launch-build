@@ -176,6 +176,46 @@ export async function rescoreProspects({
   return stats
 }
 
+export async function regenerateBriefs({
+  campaignId,
+  clientId,
+}: {
+  campaignId: string
+  clientId: string
+}): Promise<{ generated: number; errors: string[] }> {
+  const supabase = createServiceClient()
+  const stats = { generated: 0, errors: [] as string[] }
+
+  const { data: prospects } = await supabase
+    .from("outbound_prospects")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .eq("client_id", clientId)
+    .is("research_brief", null)
+    .not("status", "eq", "suppressed")
+
+  if (!prospects || prospects.length === 0) return stats
+
+  for (const raw of prospects) {
+    const p = raw as OutboundProspect
+    try {
+      const brief = await generateResearchBrief(p)
+      await supabase
+        .from("outbound_prospects")
+        .update({
+          research_brief: brief.brief,
+          research_confidence: brief.confidence,
+        })
+        .eq("id", p.id)
+      stats.generated++
+    } catch (e) {
+      stats.errors.push(`${p.email}: ${e instanceof Error ? e.message : "failed"}`)
+    }
+  }
+
+  return stats
+}
+
 export async function importProspects({
   campaignId,
   clientId,
