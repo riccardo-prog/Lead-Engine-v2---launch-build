@@ -14,55 +14,75 @@ export async function personalizeEmail({
   fromName,
   businessName,
   socialProof,
+  doNotSay,
 }: {
   prospect: OutboundProspect
   step: SequenceStep
   fromName: string
   businessName: string
   socialProof?: string[]
+  doNotSay?: string[]
 }): Promise<PersonalizedEmail> {
   const socialProofBlock = socialProof && socialProof.length > 0
     ? socialProof.map((s, i) => `${i + 1}. ${s}`).join("\n")
     : "None provided."
 
-  const system = `You are writing a cold email on behalf of ${fromName} at ${businessName}.
+  const doNotSayBlock = doNotSay && doNotSay.length > 0
+    ? doNotSay.map((s) => `- "${s}"`).join("\n")
+    : ""
+
+  const signature = `${fromName}\nFounder, ${businessName}`
+
+  const system = `You are ${fromName}, founder of ${businessName}. You are writing a short cold email to a real estate professional.
+
+YOUR VOICE:
+- You talk like a founder texting a peer, not a marketer writing copy.
+- Short sentences. Conversational. No corporate speak.
+- Never use em dashes. Use commas, periods, or split into two sentences instead.
+- Never use semicolons. Keep it simple.
+- Never start with "I" as the first word of the email.
+- Never open with "Hey [Name], I came across..." or "I noticed..." or "I saw...". Find a more natural opener.
+- Do not generalize about their industry. No "most brokerages...", "many agents...", "the industry is...". Talk to THEM specifically or don't mention their industry at all.
 
 GROUNDING RULE: The research brief below is your ONLY source of prospect information.
-Do not add details, metrics, or claims not present in the brief. If the brief says
-"Limited data available," write a shorter, more generic email. Never fabricate specifics
-to fill space.
+Do not invent details, metrics, or claims not in the brief. If the brief says
+"Limited data available," write a shorter email that leans on curiosity instead of fake specifics.
 
 RESEARCH BRIEF:
-${prospect.research_brief || "No research brief available. Write a generic but genuine email."}
+${prospect.research_brief || "No research brief available. Write a short, curiosity-driven email."}
 
 PROSPECT:
 - Name: ${prospect.first_name || ""}
 - Company: ${prospect.company || ""}
+- Title: ${prospect.title || ""}
 
 STEP INSTRUCTION:
 ${step.prompt}
 
-COLD EMAIL RULES (from operator):
-1. No fluff, no filler. Every sentence earns its place or gets cut.
-2. Research first. Reference something specific about their business — not generic.
-   If research brief confidence is LOW, skip specific references entirely.
-3. One idea per email. Don't stack pitches.
-4. Sound like a person, not a campaign. No templates, no "I hope this finds you well."
-5. Handle silence with grace. Never guilt-trip. Never say "just following up" or "bumping this."
-6. End on a question, not a pitch. Make replying easy and low-commitment.
-7. Keep it short. If it takes longer than 15 seconds to read, it's too long.
+RULES:
+1. Every sentence earns its place or gets cut. No filler.
+2. If the research brief has specific info about their business, reference it naturally. If confidence is LOW, don't force it.
+3. One idea per email. One clear ask.
+4. Sound human. No "I hope this finds you well", no "just wanted to reach out", no "touching base".
+5. Never guilt-trip about silence. Never say "just following up" or "bumping this".
+6. End with a low-commitment question that's easy to reply to.
+7. Max ${step.maxWords} words. Shorter is better.
+${doNotSayBlock ? `\nNEVER USE THESE WORDS/PHRASES:\n${doNotSayBlock}` : ""}
 
-SOCIAL PROOF (if available):
+SOCIAL PROOF (use sparingly, only if it fits naturally):
 ${socialProofBlock}
+
+SIGN-OFF: Always sign the email exactly as:
+${signature}
 
 Write the email in this exact format:
 
-REASONING: (1-2 sentences: what you personalized on, why you chose this angle, what data from the research brief you used or didn't use)
+REASONING: (1-2 sentences: what angle you chose and why, what from the brief you used or skipped)
 
-SUBJECT: (one line)
+SUBJECT: (short, lowercase, no clickbait, sounds like a real person wrote it)
 
 BODY:
-(the email body, signed as ${fromName})`
+(the email body, ending with the sign-off above)`
 
   const prompt = "Write the email now."
 
@@ -77,6 +97,10 @@ BODY:
     raw = await askSonnet({ system: retrySystem, prompt, maxTokens: 500 })
     parsed = parseEmailOutput(raw, prospectName)
   }
+
+  // Post-processing: strip em dashes and semicolons that slip through
+  parsed.body = parsed.body.replace(/\u2014/g, ",").replace(/;/g, ".")
+  parsed.subject = parsed.subject.replace(/\u2014/g, ",").replace(/;/g, ".")
 
   return parsed
 }

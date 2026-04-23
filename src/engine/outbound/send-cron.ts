@@ -195,6 +195,7 @@ export async function runOutboundSendCron(clientId: string): Promise<{
             fromName: account.from_name,
             businessName: config.businessName,
             socialProof: campaign.social_proof || config.outbound?.socialProof || undefined,
+            doNotSay: config.aiPersona?.doNotSay || undefined,
           })
 
           if (!finalSubject) finalSubject = personalized.subject
