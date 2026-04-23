@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase-server"
 import { sendMessage } from "@/engine/messaging/send"
+import { sendEmailViaGmail } from "@/engine/messaging/gmail"
 import { checkAvailability, createBooking } from "@/engine/booking/calcom"
 import { getConfig } from "@/lib/config"
 import { notify, leadName } from "@/engine/notifications/notify"
@@ -43,6 +44,11 @@ export async function executeAction(actionId: string, clientId?: string): Promis
 
   if (action.status !== "approved") {
     return { success: false, reason: `Action status is ${action.status}, not approved` }
+  }
+
+  // Handle send_outbound before lead lookup — outbound prospects may not have a lead
+  if (action.action_type === "send_outbound") {
+    return handleSendOutbound(action, config, supabase)
   }
 
   const { data: leadRow } = await supabase
@@ -373,4 +379,137 @@ async function handleBookAppointment(action: AIAction, lead: Lead, config: Await
     scheduled: sendResult.scheduled,
     scheduledFor: sendResult.scheduledFor,
   }
+}
+
+type OutboundEmailMeta = {
+  emailId: string
+  prospectId: string
+  campaignId: string
+  subject: string
+  body: string
+  toEmail: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleSendOutbound(action: AIAction, config: Awaited<ReturnType<typeof getConfig>>, supabase: any): Promise<ExecuteResult> {
+  if (!action.proposed_content) {
+    return { success: false, reason: "No outbound email data in proposed_content" }
+  }
+
+  let meta: OutboundEmailMeta
+  try {
+    meta = JSON.parse(action.proposed_content) as OutboundEmailMeta
+  } catch {
+    return { success: false, reason: "Invalid outbound email data" }
+  }
+
+  // Allow content override (user edited in inbox)
+  const subject = meta.subject
+  const body = meta.body
+
+  // Look up prospect for threading info
+  const { data: prospect } = await supabase
+    .from("outbound_prospects")
+    .select("first_name, last_name, email")
+    .eq("id", meta.prospectId)
+    .maybeSingle()
+
+  // Check for threading (follow-up emails)
+  let threadId: string | undefined
+  let inReplyTo: string | undefined
+
+  const { data: step0 } = await supabase
+    .from("outbound_emails")
+    .select("gmail_thread_id, gmail_message_id")
+    .eq("prospect_id", meta.prospectId)
+    .eq("step_order", 0)
+    .eq("status", "sent")
+    .maybeSingle()
+
+  if (step0) {
+    threadId = step0.gmail_thread_id || undefined
+    inReplyTo = step0.gmail_message_id || undefined
+  }
+
+  const toName = prospect
+    ? [prospect.first_name, prospect.last_name].filter(Boolean).join(" ") || undefined
+    : undefined
+
+  const result = await sendEmailViaGmail({
+    clientId: config.clientId,
+    toEmail: meta.toEmail,
+    toName,
+    subject,
+    body,
+    threadId,
+    inReplyTo,
+  })
+
+  if (!result.success) {
+    // Mark email as failed
+    await supabase
+      .from("outbound_emails")
+      .update({ status: "failed", failure_reason: result.error || "Send failed" })
+      .eq("id", meta.emailId)
+
+    return { success: false, reason: result.error || "Gmail send failed" }
+  }
+
+  // Update outbound email record
+  await supabase
+    .from("outbound_emails")
+    .update({
+      status: "sent",
+      subject: meta.subject,
+      body: meta.body,
+      sent_at: new Date().toISOString(),
+      gmail_message_id: result.messageId || null,
+      gmail_thread_id: result.threadId || null,
+    })
+    .eq("id", meta.emailId)
+
+  // Update prospect status
+  await supabase
+    .from("outbound_prospects")
+    .update({ status: "sending", updated_at: new Date().toISOString() })
+    .eq("id", meta.prospectId)
+    .eq("status", "pending")
+
+  // Update sending account daily count
+  const { data: campaign } = await supabase
+    .from("outbound_campaigns")
+    .select("sending_account_id")
+    .eq("id", meta.campaignId)
+    .maybeSingle()
+
+  if (campaign?.sending_account_id) {
+    const { data: account } = await supabase
+      .from("outbound_sending_accounts")
+      .select("sends_today")
+      .eq("id", campaign.sending_account_id)
+      .maybeSingle()
+
+    if (account) {
+      await supabase
+        .from("outbound_sending_accounts")
+        .update({ sends_today: (account.sends_today || 0) + 1 })
+        .eq("id", campaign.sending_account_id)
+    }
+  }
+
+  // Mark action executed
+  await supabase
+    .from("ai_actions")
+    .update({ status: "executed", executed_at: new Date().toISOString() })
+    .eq("id", action.id)
+    .eq("client_id", config.clientId)
+
+  await notify({
+    clientId: config.clientId,
+    type: "message_sent",
+    title: `Outbound email sent to ${toName || meta.toEmail}`,
+    body: subject,
+  })
+
+  return { success: true }
 }

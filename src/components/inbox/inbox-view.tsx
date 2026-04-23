@@ -25,14 +25,28 @@ export function InboxView({
   const router = useRouter()
 
   const current = actions.find((a) => a.id === selected)
-  const currentLead = current ? leadMap[current.lead_id] : null
+  const currentLead = current?.lead_id ? leadMap[current.lead_id] : null
+  const isOutbound = current?.action_type === "send_outbound"
+  const outboundMeta = isOutbound && current?.proposed_content
+    ? (() => { try { return JSON.parse(current.proposed_content!) } catch { return null } })()
+    : null
 
   const stageMap: Record<string, string> = {}
   for (const s of stages) stageMap[s.id] = s.label
 
   useEffect(() => {
     if (current) {
-      setEditedContent(current.proposed_content || "")
+      // For outbound, edit just the body text; for others, edit full content
+      if (current.action_type === "send_outbound" && current.proposed_content) {
+        try {
+          const meta = JSON.parse(current.proposed_content)
+          setEditedContent(meta.body || "")
+        } catch {
+          setEditedContent(current.proposed_content || "")
+        }
+      } else {
+        setEditedContent(current.proposed_content || "")
+      }
       setFeedback("")
       setMode("view")
       setError(null)
@@ -44,13 +58,23 @@ export function InboxView({
     setBusy(true)
     setError(null)
 
+    // For outbound edits, merge edited body back into the JSON metadata
+    let finalOverride = contentOverride
+    if (finalOverride !== undefined && current.action_type === "send_outbound" && current.proposed_content) {
+      try {
+        const meta = JSON.parse(current.proposed_content)
+        meta.body = finalOverride
+        finalOverride = JSON.stringify(meta)
+      } catch { /* use raw override */ }
+    }
+
     // Single atomic server call: approves + executes. No direct DB write.
     const execRes = await fetch("/api/actions/execute", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         actionId: current.id,
-        ...(contentOverride !== undefined && { contentOverride }),
+        ...(finalOverride !== undefined && { contentOverride: finalOverride }),
       }),
     })
 
@@ -110,8 +134,13 @@ export function InboxView({
               </span>
             </div>
             {actions.map((action) => {
-              const lead = leadMap[action.lead_id]
-              const name = lead ? [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unnamed" : "—"
+              const lead = action.lead_id ? leadMap[action.lead_id] : null
+              let name = "—"
+              if (lead) {
+                name = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unnamed"
+              } else if (action.action_type === "send_outbound" && action.proposed_content) {
+                try { name = JSON.parse(action.proposed_content).toEmail || "—" } catch { /* noop */ }
+              }
               const isActive = action.id === selected
               return (
                 <button
@@ -141,22 +170,38 @@ export function InboxView({
 
           {/* Right panel — action detail */}
           <div className="border border-border rounded-xl bg-card p-6 overflow-auto flex flex-col gap-5">
-            {current && currentLead ? (
+            {current && (currentLead || isOutbound) ? (
               <>
-                {/* Lead info */}
-                <div>
-                  <div className="text-lg font-semibold">
-                    {[currentLead.first_name, currentLead.last_name].filter(Boolean).join(" ") || "Unnamed"}
-                  </div>
-                  <div className="text-[13px] text-muted-foreground mt-1">
-                    {currentLead.email || "—"} · {stageMap[currentLead.stage_id] || currentLead.stage_id}
-                    {current.action_type === "send_message" && (
-                      <span className="ml-2 text-[11px] px-2 py-0.5 rounded bg-indigo-500/[0.08] text-indigo-600 dark:text-indigo-400">
-                        via {inferChannelLabel(currentLead)}
+                {/* Lead or prospect info */}
+                {isOutbound && outboundMeta ? (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-lg font-semibold">{outboundMeta.toEmail}</div>
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/[0.08] text-cyan-600 dark:text-cyan-400">
+                        Outbound
                       </span>
+                    </div>
+                    {outboundMeta.subject && (
+                      <div className="text-[13px] text-muted-foreground mt-1">
+                        Subject: {outboundMeta.subject}
+                      </div>
                     )}
                   </div>
-                </div>
+                ) : currentLead ? (
+                  <div>
+                    <div className="text-lg font-semibold">
+                      {[currentLead.first_name, currentLead.last_name].filter(Boolean).join(" ") || "Unnamed"}
+                    </div>
+                    <div className="text-[13px] text-muted-foreground mt-1">
+                      {currentLead.email || "—"} · {stageMap[currentLead.stage_id] || currentLead.stage_id}
+                      {current.action_type === "send_message" && (
+                        <span className="ml-2 text-[11px] px-2 py-0.5 rounded bg-indigo-500/[0.08] text-indigo-600 dark:text-indigo-400">
+                          via {inferChannelLabel(currentLead)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Conversation context */}
                 {currentLead && messagesByLead[currentLead.id]?.length > 0 && (
@@ -210,11 +255,11 @@ export function InboxView({
                   </div>
                 </div>
 
-                {/* Proposed message */}
+                {/* Proposed message / outbound email preview */}
                 {current.proposed_content && (
                   <div>
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.05em] mb-2">
-                      Proposed Message
+                      {isOutbound ? "Email Preview" : "Proposed Message"}
                     </div>
                     {mode === "edit" ? (
                       <textarea
@@ -222,6 +267,18 @@ export function InboxView({
                         onChange={(e) => setEditedContent(e.target.value)}
                         className="w-full min-h-[240px] px-4 py-3 bg-background border border-border rounded-lg text-sm leading-relaxed font-[inherit] text-foreground outline-none resize-y focus:border-indigo-500/30 transition-colors"
                       />
+                    ) : isOutbound && outboundMeta ? (
+                      <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg overflow-hidden">
+                        <div className="px-4 py-2.5 border-b border-border text-[13px]">
+                          <span className="text-muted-foreground">To: </span>{outboundMeta.toEmail}
+                        </div>
+                        <div className="px-4 py-2.5 border-b border-border text-[13px]">
+                          <span className="text-muted-foreground">Subject: </span>{outboundMeta.subject}
+                        </div>
+                        <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+                          {outboundMeta.body}
+                        </div>
+                      </div>
                     ) : (
                       <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
                         {current.proposed_content}
@@ -261,7 +318,9 @@ export function InboxView({
                         disabled={busy}
                         className={`flex-1 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 text-white border-none text-sm font-medium transition-opacity ${busy ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:opacity-90"}`}
                       >
-                        {busy ? "Working..." : current.action_type === "send_message"
+                        {busy ? "Working..." : isOutbound
+                          ? "Approve and send email"
+                          : current.action_type === "send_message"
                           ? `Approve and send via ${inferChannelLabel(currentLead)}`
                           : "Approve"}
                       </button>

@@ -32,7 +32,7 @@ export async function PATCH(
       return NextResponse.json({ error: `Cannot transition from ${campaign.status} to ${status}` }, { status: 400 })
     }
 
-    await updateCampaignStatus(campaignId, status)
+    await updateCampaignStatus(campaignId, status as CampaignStatus)
     return NextResponse.json({ status })
   } catch (e) {
     console.error("Campaign status update error", e)

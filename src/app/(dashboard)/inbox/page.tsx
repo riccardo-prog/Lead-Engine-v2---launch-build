@@ -15,7 +15,7 @@ export default async function InboxPage() {
     .eq("status", "pending")
     .order("created_at", { ascending: false })
 
-  const leadIds = Array.from(new Set((actions || []).map((a) => a.lead_id)))
+  const leadIds = Array.from(new Set((actions || []).map((a) => a.lead_id).filter(Boolean)))
   const { data: leads } = leadIds.length
     ? await supabase.from("leads").select("*").in("id", leadIds)
     : { data: [] }
