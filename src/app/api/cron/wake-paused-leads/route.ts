@@ -2,18 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
 import { decideNextAction } from "@/engine/nurture/decide-action"
 import { getConfig } from "@/lib/config"
+import { requireBearerToken } from "@/lib/api-auth"
 import type { Lead, Message } from "@/types/database"
 
-const CRON_SECRET = process.env.CRON_SECRET
-
 export async function GET(request: NextRequest) {
-  if (!CRON_SECRET) {
-    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 })
-  }
-  const auth = request.headers.get("authorization")
-  if (auth !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const auth = requireBearerToken(request)
+  if (!auth.ok) return auth.response
 
   try {
     const supabase = createServiceClient()
@@ -25,6 +19,7 @@ export async function GET(request: NextRequest) {
       .lte("paused_until", new Date().toISOString())
       .eq("disqualified", false)
       .eq("opted_out", false)
+      .limit(50)
 
     if (!pausedLeads || pausedLeads.length === 0) {
       return NextResponse.json({ woken: 0 })

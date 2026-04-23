@@ -36,7 +36,7 @@ async function followUpForClient(clientId: string) {
     .select("*")
     .eq("client_id", config.clientId)
     .lt("updated_at", cutoff)
-    .not("stage_id", "in", '("booked","closed")')
+    .not("stage_id", "in", "(booked,closed)")
     .eq("disqualified", false)
     .eq("opted_out", false)
     .order("updated_at", { ascending: true })

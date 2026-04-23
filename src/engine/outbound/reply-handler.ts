@@ -69,10 +69,10 @@ export async function handleOutboundReply({
     sentiment: classification.sentiment,
   })
 
-  // Stop remaining sequence emails
+  // Cancel remaining sequence emails (keep for audit trail)
   await supabase
     .from("outbound_emails")
-    .delete()
+    .update({ status: "cancelled" })
     .eq("prospect_id", prospectId)
     .eq("status", "pending")
 

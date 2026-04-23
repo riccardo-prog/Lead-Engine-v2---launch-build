@@ -51,10 +51,18 @@ export function parseCSV(csvText: string): CSVRow[] {
     const values = parseCsvLine(line)
     const row: CSVRow = {}
     headers.forEach((h, i) => {
-      row[h] = (values[i] || "").trim()
+      row[h] = sanitizeCsvValue((values[i] || "").trim())
     })
     return row
   }).filter((row) => row.email)
+}
+
+/** Strip formula-injection prefixes that could execute in spreadsheet exports */
+function sanitizeCsvValue(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return value.replace(/^[=+\-@\t\r]+/, "")
+  }
+  return value
 }
 
 function parseCsvLine(line: string): string[] {

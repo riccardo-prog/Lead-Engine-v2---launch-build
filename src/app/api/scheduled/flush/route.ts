@@ -51,6 +51,17 @@ async function flushForClient(clientId: string) {
   for (const message of (due as Message[]) || []) {
     const attempts = (message.send_attempts || 0) + 1
 
+    // Atomic claim: bump send_attempts to prevent concurrent flush from picking the same message
+    const { data: claimed } = await supabase
+      .from("messages")
+      .update({ send_attempts: attempts })
+      .eq("id", message.id)
+      .eq("send_attempts", message.send_attempts || 0)
+      .select("id")
+      .maybeSingle()
+
+    if (!claimed) continue // another process already claimed this message
+
     // Fetch lead for all channels — needed for notifications and send context.
     const { data: leadData } = await supabase
       .from("leads")
@@ -105,6 +116,12 @@ async function flushForClient(clientId: string) {
           failed++
           continue
         }
+      } else {
+        // Non-email channels (SMS, DMs) are not yet implemented — mark as failed instead of silently marking sent
+        await markSendFailed(supabase, message.id, attempts, `channel_not_implemented:${message.channel}`)
+        failed++
+        giveUp++
+        continue
       }
 
       await supabase

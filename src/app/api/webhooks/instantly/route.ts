@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
+import { timingSafeEqual } from "crypto"
 import { processIntake } from "@/engine/intake/process-lead"
 import { getConfig } from "@/lib/config"
 import { createServiceClient } from "@/lib/supabase-server"
 
 const INSTANTLY_SECRET = process.env.INSTANTLY_WEBHOOK_SECRET
 
-/**
- * Instantly webhook — receives reply_received events from cold outbound campaigns.
- * Maps the Instantly payload to our intake format and processes as cold-email-reply.
- *
- * Resolves tenant by looking up which client owns the prospect email.
- */
 export async function POST(request: NextRequest) {
-  if (INSTANTLY_SECRET) {
-    const secret = request.headers.get("x-instantly-secret")
-    if (secret !== INSTANTLY_SECRET) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-  } else {
-    console.warn("INSTANTLY_WEBHOOK_SECRET not set — accepting all requests")
+  if (!INSTANTLY_SECRET) {
+    return NextResponse.json({ error: "INSTANTLY_WEBHOOK_SECRET not configured" }, { status: 500 })
+  }
+
+  const secret = request.headers.get("x-instantly-secret") || ""
+  const expectedBuf = Buffer.from(INSTANTLY_SECRET)
+  const receivedBuf = Buffer.alloc(expectedBuf.length)
+  receivedBuf.write(secret)
+  if (secret.length !== INSTANTLY_SECRET.length || !timingSafeEqual(receivedBuf, expectedBuf)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {

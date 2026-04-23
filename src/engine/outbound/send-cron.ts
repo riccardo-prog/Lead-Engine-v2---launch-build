@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase-server"
 import { sendEmailViaGmail } from "@/engine/messaging/gmail"
 import { getConfig } from "@/lib/config"
 import { notify } from "@/engine/notifications/notify"
+import { getHourInTimezone, startOfDayInTimezone } from "@/lib/timezone"
 import { isSuppressed } from "./suppression"
 import { personalizeEmail } from "./personalize"
 import { getSequence } from "./campaigns"
@@ -13,17 +14,22 @@ import type {
   SequenceStep,
 } from "./types"
 
-function nowInET(): Date {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Toronto" }))
-}
+const SEND_TZ = "America/Toronto"
 
 function todayDateET(): string {
-  return nowInET().toISOString().split("T")[0]
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SEND_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now)
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || "00"
+  return `${get("year")}-${get("month")}-${get("day")}`
 }
 
 function isWithinSendingHours(): boolean {
-  const etNow = nowInET()
-  const hour = etNow.getHours()
+  const hour = getHourInTimezone(new Date(), SEND_TZ)
   return hour >= 9 && hour < 17
 }
 
@@ -241,14 +247,15 @@ export async function runOutboundSendCron(clientId: string): Promise<{
           continue
         }
 
-        // Send via Gmail
+        // Send via Gmail — append unsubscribe footer for CAN-SPAM/CASL compliance
+        const bodyWithFooter = `${finalBody}\n\n---\n${config.businessName}\nIf you'd prefer not to hear from us, just reply "unsubscribe".`
         const toName = [prospect.first_name, prospect.last_name].filter(Boolean).join(" ")
         const result = await sendEmailViaGmail({
           clientId,
           toEmail: prospect.email,
           toName: toName || undefined,
           subject: finalSubject,
-          body: finalBody,
+          body: bodyWithFooter,
           threadId,
           inReplyTo,
         })
@@ -411,12 +418,7 @@ async function pauseAccount(
 }
 
 function getNextMidnightET(): Date {
-  const now = new Date()
-  const etString = now.toLocaleString("en-US", { timeZone: "America/Toronto" })
-  const etNow = new Date(etString)
-  const midnight = new Date(etNow)
-  midnight.setDate(midnight.getDate() + 1)
-  midnight.setHours(0, 0, 0, 0)
-  const offset = now.getTime() - etNow.getTime()
-  return new Date(midnight.getTime() + offset)
+  const tomorrow = startOfDayInTimezone(new Date(), SEND_TZ)
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+  return tomorrow
 }

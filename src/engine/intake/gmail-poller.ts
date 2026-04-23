@@ -5,6 +5,7 @@ import { handleOutboundReply } from "@/engine/outbound/reply-handler"
 import { handoffToLeadEngine } from "@/engine/outbound/handoff"
 import { createServiceClient } from "@/lib/supabase-server"
 import { getConfig } from "@/lib/config"
+import { stripHtml } from "@/lib/html"
 import type { Lead } from "@/types/database"
 
 const HANDOFF_STAGES = new Set(["booked", "disqualified"])
@@ -277,20 +278,6 @@ function base64UrlDecode(data: string): string {
   return Buffer.from(base64, "base64").toString("utf-8")
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim()
-}
 
 async function markRead(token: string, messageId: string): Promise<void> {
   try {

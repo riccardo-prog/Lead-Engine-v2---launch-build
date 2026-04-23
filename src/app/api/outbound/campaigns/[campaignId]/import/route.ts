@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getClientIdFromSession, getConfig } from "@/lib/config"
+import { requireSession } from "@/lib/api-auth"
 import { parseCSV, importProspects } from "@/engine/outbound/prospects"
 import { getCampaign } from "@/engine/outbound/campaigns"
 
@@ -7,6 +8,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> }
 ) {
+  const auth = await requireSession()
+  if (!auth.ok) return auth.response
+
   try {
     const { campaignId } = await params
     const clientId = await getClientIdFromSession()

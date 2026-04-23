@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getClientIdFromSession } from "@/lib/config"
+import { requireSession } from "@/lib/api-auth"
 import { getCampaign, updateCampaignStatus } from "@/engine/outbound/campaigns"
 import type { CampaignStatus } from "@/engine/outbound/types"
 
@@ -14,6 +15,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> }
 ) {
+  const auth = await requireSession()
+  if (!auth.ok) return auth.response
+
   try {
     const { campaignId } = await params
     const clientId = await getClientIdFromSession()

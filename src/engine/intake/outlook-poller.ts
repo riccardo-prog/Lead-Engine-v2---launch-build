@@ -4,6 +4,7 @@ import { processIntake } from "@/engine/intake/process-lead"
 import { notify, leadName } from "@/engine/notifications/notify"
 import { createServiceClient } from "@/lib/supabase-server"
 import { getConfig } from "@/lib/config"
+import { stripHtml } from "@/lib/html"
 import type { Lead } from "@/types/database"
 
 /** Stages where the AI should no longer auto-respond — hand off to the human operator. */
@@ -242,17 +243,3 @@ async function markRead(token: string, messageId: string): Promise<void> {
   }
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim()
-}

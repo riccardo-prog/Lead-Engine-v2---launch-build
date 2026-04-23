@@ -79,19 +79,37 @@ async function processCalEvent(body: CalWebhookPayload) {
     return
   }
 
-  const { data: leadRow } = await supabase
+  // Find all leads matching this email across tenants, then pick the one
+  // whose client actually uses Cal.com as their booking provider.
+  const { data: leadRows } = await supabase
     .from("leads")
     .select("client_id")
     .ilike("email", attendee.email)
-    .limit(1)
-    .maybeSingle()
 
-  if (!leadRow) {
+  if (!leadRows || leadRows.length === 0) {
     console.log("Cal.com booking for unknown lead", { email: attendee.email })
     return
   }
 
-  const config = await getConfig(leadRow.client_id)
+  let matchedClientId: string | null = null
+  for (const row of leadRows) {
+    try {
+      const cfg = await getConfig(row.client_id)
+      if (cfg.booking?.provider === "cal.com") {
+        matchedClientId = row.client_id
+        break
+      }
+    } catch {
+      // config not found for this client, skip
+    }
+  }
+
+  if (!matchedClientId) {
+    console.log("Cal.com booking — no matching client with cal.com provider", { email: attendee.email })
+    return
+  }
+
+  const config = await getConfig(matchedClientId)
 
   if (body.triggerEvent === "BOOKING_CREATED") {
     await handleBookingCreated(body, config, supabase)
@@ -100,8 +118,7 @@ async function processCalEvent(body: CalWebhookPayload) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleBookingCreated(body: CalWebhookPayload, config: ClientConfig, supabase: any) {
+async function handleBookingCreated(body: CalWebhookPayload, config: ClientConfig, supabase: ReturnType<typeof createServiceClient>) {
   const attendee = body.payload.attendees?.[0]
   if (!attendee?.email) {
     console.error("Cal.com booking webhook has no attendee email")
@@ -170,8 +187,7 @@ async function handleBookingCreated(body: CalWebhookPayload, config: ClientConfi
   })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleBookingCancelled(body: CalWebhookPayload, config: ClientConfig, supabase: any) {
+async function handleBookingCancelled(body: CalWebhookPayload, config: ClientConfig, supabase: ReturnType<typeof createServiceClient>) {
   const attendee = body.payload.attendees?.[0]
   if (!attendee?.email) return
 

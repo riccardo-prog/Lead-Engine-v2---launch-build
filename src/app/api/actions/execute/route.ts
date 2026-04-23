@@ -27,16 +27,22 @@ export async function POST(request: NextRequest) {
       updates.proposed_content = contentOverride
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("ai_actions")
       .update(updates)
       .eq("id", actionId)
       .eq("client_id", clientId)
       .eq("status", "pending")
+      .select("id")
+      .maybeSingle()
 
     if (updateError) {
       console.error("Failed to approve action", updateError)
       return NextResponse.json({ error: "approval_failed" }, { status: 500 })
+    }
+
+    if (!updated) {
+      return NextResponse.json({ error: "Action not found or already processed" }, { status: 409 })
     }
 
     const result = await executeAction(actionId)

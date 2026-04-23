@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getClientIdFromSession } from "@/lib/config"
+import { requireSession } from "@/lib/api-auth"
 import { createCampaign, createSequence, DEFAULT_SEQUENCE_STEPS } from "@/engine/outbound/campaigns"
 import { createServiceClient } from "@/lib/supabase-server"
 
 export async function POST(request: NextRequest) {
+  const auth = await requireSession()
+  if (!auth.ok) return auth.response
+
   try {
     const clientId = await getClientIdFromSession()
     const { name } = await request.json()
