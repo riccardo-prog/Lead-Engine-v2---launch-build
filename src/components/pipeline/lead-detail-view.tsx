@@ -54,21 +54,21 @@ export function LeadDetailView({
       </div>
 
       {/* Lead header */}
-      <div className="flex justify-between items-start">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-sm font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-xs sm:text-sm font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
             {name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
           </div>
-          <div>
-            <h1 className="text-xl font-semibold">{name}</h1>
-            <div className="flex gap-4 mt-1.5 text-sm text-muted-foreground">
-              {lead.email && <span>{lead.email}</span>}
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold">{name}</h1>
+            <div className="flex flex-col sm:flex-row sm:gap-4 gap-0.5 mt-1 text-sm text-muted-foreground">
+              {lead.email && <span className="truncate">{lead.email}</span>}
               {lead.phone && <span>{lead.phone}</span>}
               <span>{source?.label || lead.source_id}</span>
             </div>
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 ml-13 sm:ml-0">
           {summary && (
             <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium uppercase tracking-widest border ${tempBadge[summary.temperature] || "border-border text-muted-foreground"}`}>
               {summary.temperature}
@@ -109,7 +109,7 @@ export function LeadDetailView({
           )}
 
           {/* Status / Next Action grid */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-[0.05em] mb-1.5">
                 Status
@@ -188,8 +188,8 @@ export function LeadDetailView({
                   className={`
                     px-4 py-3.5 flex flex-col gap-1.5
                     ${isInbound
-                      ? "bg-white/[0.04] border border-white/[0.06] rounded-xl rounded-bl-sm mr-12"
-                      : "bg-indigo-500/[0.06] border border-indigo-500/10 rounded-xl rounded-br-sm ml-12"
+                      ? "bg-white/[0.04] border border-white/[0.06] rounded-xl rounded-bl-sm mr-4 sm:mr-12"
+                      : "bg-indigo-500/[0.06] border border-indigo-500/10 rounded-xl rounded-br-sm ml-4 sm:ml-12"
                     }
                   `}
                 >

@@ -187,12 +187,12 @@ export function InboxView({
                 {isOutbound && outboundMeta ? (
                   <div className="flex flex-col gap-4">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-lg font-semibold">
-                          {outboundMeta.prospect?.firstName
-                            ? `${outboundMeta.prospect.firstName}${outboundMeta.prospect.lastName ? ` ${outboundMeta.prospect.lastName}` : ""}`
-                            : outboundMeta.toEmail}
-                        </div>
+                      <div className="text-base md:text-lg font-semibold">
+                        {outboundMeta.prospect?.firstName
+                          ? `${outboundMeta.prospect.firstName}${outboundMeta.prospect.lastName ? ` ${outboundMeta.prospect.lastName}` : ""}`
+                          : outboundMeta.toEmail}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                         <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-500/[0.08] text-cyan-600 dark:text-cyan-400">
                           Outbound
                         </span>
@@ -202,21 +202,18 @@ export function InboxView({
                           </span>
                         )}
                       </div>
-                      <div className="text-[13px] text-muted-foreground mt-1 flex items-center gap-2">
-                        <span>{outboundMeta.toEmail}</span>
+                      <div className="text-[13px] text-muted-foreground mt-1.5 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
+                        <span className="truncate">{outboundMeta.toEmail}</span>
                         {outboundMeta.prospect?.company && (
-                          <>
-                            <span className="text-muted-foreground/50">·</span>
-                            <span>{outboundMeta.prospect.title ? `${outboundMeta.prospect.title} at ` : ""}{outboundMeta.prospect.company}</span>
-                          </>
+                          <span className="truncate">{outboundMeta.prospect.title ? `${outboundMeta.prospect.title} at ` : ""}{outboundMeta.prospect.company}</span>
                         )}
                       </div>
                     </div>
 
                     {/* ICP Score + Key Insights */}
                     {outboundMeta.prospect?.icpScore != null && (
-                      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 bg-white/[0.02] border border-white/[0.05] rounded-lg px-4 py-3">
-                        <div className="flex items-center gap-2">
+                      <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg px-4 py-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.05em]">ICP Score</div>
                           <div className={`text-sm font-semibold ${
                             outboundMeta.prospect.icpScore >= 70 ? "text-emerald-500" :
@@ -234,23 +231,22 @@ export function InboxView({
                             </span>
                           )}
                         </div>
-                        <div />
                         {outboundMeta.prospect.icpFactors && (
-                          <>
+                          <div className="flex flex-col gap-1.5">
                             {Object.entries(outboundMeta.prospect.icpFactors as Record<string, { score?: number; reason?: string }>)
                               .filter(([key]) => key !== "summary")
                               .map(([key, val]) => (
-                              <div key={key} className="contents">
-                                <div className="text-[11px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</div>
+                              <div key={key} className="flex flex-col sm:flex-row sm:gap-2">
+                                <div className="text-[11px] text-muted-foreground capitalize shrink-0 sm:min-w-[90px]">{key.replace(/_/g, " ")}</div>
                                 <div className="text-[12px] text-foreground/80">{val.reason || `${val.score}/100`}</div>
                               </div>
                             ))}
-                            {(outboundMeta.prospect.icpFactors as Record<string, unknown>).summary && (
-                              <div className="col-span-2 text-[12px] text-muted-foreground border-t border-white/[0.05] pt-2 mt-1">
-                                {(outboundMeta.prospect.icpFactors as Record<string, unknown>).summary as string}
+                            {typeof (outboundMeta.prospect.icpFactors as Record<string, unknown>).summary === "string" && (
+                              <div className="text-[12px] text-muted-foreground border-t border-white/[0.05] pt-2 mt-1">
+                                {(outboundMeta.prospect.icpFactors as Record<string, string>).summary}
                               </div>
                             )}
-                          </>
+                          </div>
                         )}
                       </div>
                     )}
@@ -378,7 +374,7 @@ export function InboxView({
                 )}
 
                 {/* Action buttons */}
-                <div className="flex gap-2 mt-auto pt-4">
+                <div className="flex flex-col sm:flex-row gap-2 mt-auto pt-4">
                   {mode === "view" && (
                     <>
                       <button
@@ -387,25 +383,27 @@ export function InboxView({
                         className={`flex-1 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 text-white border-none text-sm font-medium transition-opacity ${busy ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:opacity-90"}`}
                       >
                         {busy ? "Working..." : isOutbound
-                          ? "Approve and send email"
+                          ? "Approve & send"
                           : current.action_type === "send_message"
-                          ? `Approve and send via ${inferChannelLabel(currentLead)}`
+                          ? `Approve & send`
                           : "Approve"}
                       </button>
-                      <button
-                        onClick={() => setMode("edit")}
-                        disabled={busy || !current.proposed_content}
-                        className={`flex-1 py-3 rounded-lg border border-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-sm font-medium transition-colors ${busy || !current.proposed_content ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-indigo-500/[0.06]"}`}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => setMode("reject")}
-                        disabled={busy}
-                        className={`flex-1 py-3 rounded-lg border border-red-400/15 text-red-400 text-sm font-medium transition-colors ${busy ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-red-400/[0.06]"}`}
-                      >
-                        Regenerate
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setMode("edit")}
+                          disabled={busy || !current.proposed_content}
+                          className={`flex-1 py-3 rounded-lg border border-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-sm font-medium transition-colors ${busy || !current.proposed_content ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-indigo-500/[0.06]"}`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setMode("reject")}
+                          disabled={busy}
+                          className={`flex-1 py-3 rounded-lg border border-red-400/15 text-red-400 text-sm font-medium transition-colors ${busy ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-red-400/[0.06]"}`}
+                        >
+                          Regenerate
+                        </button>
+                      </div>
                     </>
                   )}
                   {mode === "edit" && (

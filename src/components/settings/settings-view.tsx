@@ -176,7 +176,7 @@ export function SettingsView({
             These settings are managed in the config file.
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-[13px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
           <InfoRow label="Industry" value={config.industry} />
           <InfoRow label="Jurisdiction" value={config.jurisdiction} />
         </div>
@@ -197,7 +197,7 @@ function IntegrationRow({
   onDisconnect?: () => void
 }) {
   return (
-    <div className="px-4 py-4 bg-background border border-border rounded-lg flex justify-between items-center gap-4">
+    <div className="px-4 py-4 bg-background border border-border rounded-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <div className="text-sm font-medium">{name}</div>
