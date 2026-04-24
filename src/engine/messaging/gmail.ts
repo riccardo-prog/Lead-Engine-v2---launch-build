@@ -103,6 +103,7 @@ function buildMimeMessage({
   subject,
   body,
   inReplyTo,
+  listUnsubscribe,
 }: {
   from: string
   to: string
@@ -110,6 +111,7 @@ function buildMimeMessage({
   subject: string
   body: string
   inReplyTo?: string
+  listUnsubscribe?: string
 }): string {
   const toHeader = toName ? `"${toName}" <${to}>` : to
   const lines = [
@@ -121,6 +123,10 @@ function buildMimeMessage({
   if (inReplyTo) {
     lines.push(`In-Reply-To: ${inReplyTo}`)
     lines.push(`References: ${inReplyTo}`)
+  }
+  if (listUnsubscribe) {
+    lines.push(`List-Unsubscribe: <mailto:${listUnsubscribe}?subject=unsubscribe>`)
+    lines.push(`List-Unsubscribe-Post: List-Unsubscribe=One-Click`)
   }
   lines.push("", body)
   const raw = lines.join("\r\n")
@@ -139,6 +145,7 @@ export async function sendEmailViaGmail({
   body,
   threadId,
   inReplyTo,
+  listUnsubscribe,
 }: {
   clientId: string
   toEmail: string
@@ -147,6 +154,7 @@ export async function sendEmailViaGmail({
   body: string
   threadId?: string
   inReplyTo?: string
+  listUnsubscribe?: string
 }): Promise<{ success: boolean; messageId?: string; threadId?: string; error?: string }> {
   const connection = await getGoogleConnection(clientId)
   if (!connection) {
@@ -157,7 +165,7 @@ export async function sendEmailViaGmail({
     const token = await getValidGoogleToken(connection)
     const from = connection.account_email || ""
 
-    const raw = buildMimeMessage({ from, to: toEmail, toName, subject, body, inReplyTo })
+    const raw = buildMimeMessage({ from, to: toEmail, toName, subject, body, inReplyTo, listUnsubscribe })
 
     const res = await fetch(
       "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",

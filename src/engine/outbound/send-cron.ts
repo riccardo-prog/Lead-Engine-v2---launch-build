@@ -273,6 +273,7 @@ export async function runOutboundSendCron(clientId: string): Promise<{
           body: bodyWithFooter,
           threadId,
           inReplyTo,
+          listUnsubscribe: account.from_email,
         })
 
         if (result.success) {
