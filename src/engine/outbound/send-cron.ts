@@ -30,7 +30,7 @@ function todayDateET(): string {
 
 function isWithinSendingHours(): boolean {
   const hour = getHourInTimezone(new Date(), SEND_TZ)
-  return hour >= 9 && hour < 17
+  return hour >= 9 && hour < 22
 }
 
 export async function runOutboundSendCron(clientId: string): Promise<{
