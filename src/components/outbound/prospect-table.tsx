@@ -20,6 +20,8 @@ type IcpFactors = {
 const statusStyle: Record<string, string> = {
   pending: "text-zinc-500 bg-zinc-500/[0.08]",
   sending: "text-blue-600 dark:text-blue-400 bg-blue-500/[0.08]",
+  sent: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.08]",
+  awaiting_approval: "text-amber-600 dark:text-amber-400 bg-amber-500/[0.08]",
   replied: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.08]",
   paused: "text-amber-600 dark:text-amber-400 bg-amber-500/[0.08]",
   opted_out: "text-red-600 dark:text-red-400 bg-red-500/[0.08]",
@@ -269,9 +271,23 @@ function EmailPill({ email }: { email: OutboundEmail }) {
 
 // ── Prospect card row ──
 
+function deriveDisplayStatus(prospect: ProspectWithData): string {
+  // Terminal statuses always take priority
+  if (["replied", "opted_out", "bounced", "failed", "suppressed", "completed"].includes(prospect.status)) {
+    return prospect.status
+  }
+  // If any email has been sent, show "sent" instead of "sending"
+  const hasSent = prospect.emails.some((e) => e.status === "sent")
+  const hasAwaiting = prospect.emails.some((e) => e.status === "awaiting_approval")
+  if (hasSent) return "sent"
+  if (hasAwaiting) return "awaiting_approval"
+  return prospect.status
+}
+
 function ProspectCard({ prospect, totalSteps }: { prospect: ProspectWithData; totalSteps: number }) {
   const [expanded, setExpanded] = useState(false)
   const name = [prospect.first_name, prospect.last_name].filter(Boolean).join(" ") || prospect.email
+  const displayStatus = deriveDisplayStatus(prospect)
 
   return (
     <div className={`bg-card border rounded-xl transition-colors ${expanded ? "border-indigo-500/20" : "border-border hover:border-border/80"}`}>
@@ -294,8 +310,8 @@ function ProspectCard({ prospect, totalSteps }: { prospect: ProspectWithData; to
         </div>
 
         {/* Status */}
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider shrink-0 ${statusStyle[prospect.status] || statusStyle.pending}`}>
-          {prospect.status}
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider shrink-0 ${statusStyle[displayStatus] || statusStyle.pending}`}>
+          {displayStatus === "awaiting_approval" ? "approval" : displayStatus}
         </span>
 
         {/* Step */}
@@ -342,7 +358,8 @@ export function ProspectList({
   const [sort, setSort] = useState<"score" | "name">("score")
 
   let filtered = prospects.filter((p) => {
-    if (filter !== "all" && p.status !== filter) return false
+    const ds = deriveDisplayStatus(p)
+    if (filter !== "all" && ds !== filter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -367,7 +384,8 @@ export function ProspectList({
   }
 
   const statusCounts = prospects.reduce((acc, p) => {
-    acc[p.status] = (acc[p.status] || 0) + 1
+    const ds = deriveDisplayStatus(p)
+    acc[ds] = (acc[ds] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
