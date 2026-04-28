@@ -102,7 +102,6 @@ export async function pollGmailForLeads(clientId: string): Promise<{
 
     if (!senderEmail) {
       skipped++
-      await markRead(token, ref.id)
       continue
     }
 
@@ -160,10 +159,9 @@ export async function pollGmailForLeads(clientId: string): Promise<{
       .maybeSingle()
 
     if (!leadRow) {
-      // Not from a known lead — could be a new inbound email lead
-      // For now, skip non-lead emails (personal mail)
+      // Not from a known lead — skip without marking read.
+      // These are personal emails that the system shouldn't touch.
       skipped++
-      await markRead(token, ref.id)
       continue
     }
 
